@@ -59,6 +59,9 @@ message SessionSummary {
   uint64 committed_seq = 7;
   AgentState agent_state = 8;
   google.protobuf.Timestamp updated_at = 9;
+  // Native workspace directory used as the grouping key. Empty when the
+  // Harness has no workspace association for this Session.
+  optional string workspace = 10;
 }
 // Projection is versioned adapter data derived from the same Session log.
 message Projection { uint32 schema_version = 1; google.protobuf.Struct data = 2; }
