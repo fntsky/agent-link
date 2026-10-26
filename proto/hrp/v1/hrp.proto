@@ -1,0 +1,310 @@
+syntax = "proto3";
+package hrp.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+// HRP wire major 1. Document revision 1.1 is not a wire major.
+// All identifiers are opaque, case-sensitive strings. Zero enums are invalid
+// unless a field explicitly describes UNSPECIFIED as an absent filter.
+
+message Principal {
+  string user_id = 1;
+  string device_id = 2;
+  repeated MemberRole roles = 3;
+  uint64 acl_version = 4;
+}
+enum MemberRole { MEMBER_ROLE_UNSPECIFIED = 0; MEMBER_ROLE_OWNER = 1; MEMBER_ROLE_MEMBER = 2; }
+enum Permission { PERMISSION_UNSPECIFIED = 0; PERMISSION_READ = 1; PERMISSION_WRITE = 2; PERMISSION_CANCEL = 3; PERMISSION_APPROVE = 4; PERMISSION_MODEL_SELECT = 5; PERMISSION_POLICY_SET = 6; PERMISSION_INJECT = 7; }
+message Mutation { string client_operation_id = 1; }
+message Empty {}
+message Extension {
+  string namespace = 1;
+  string event_type = 2;
+  uint32 schema_version = 3;
+  string media_type = 4;
+  bytes payload = 5;
+}
+// Structured display content, never an executable remote command.
+message ContentBlock {
+  oneof value {
+    string text = 1;
+    string reasoning = 2;
+    ToolCall tool_call = 3;
+    ToolResult tool_result = 4;
+    Extension extension = 5;
+  }
+}
+message ToolCall { string call_id = 1; string tool_name = 2; google.protobuf.Struct arguments = 3; }
+message ToolResult { string call_id = 1; repeated ContentBlock content = 2; bool is_error = 3; }
+message ModelSelection { string provider = 1; string model = 2; optional string reasoning_effort = 3; }
+enum AgentState { AGENT_STATE_UNSPECIFIED = 0; AGENT_STATE_IDLE = 1; AGENT_STATE_RUNNING = 2; AGENT_STATE_UNLOADED = 3; }
+message AgentRef { string session_id = 1; optional string agent_id = 2; AgentState state = 3; }
+message ForkPoint { string session_id = 1; uint64 session_seq = 2; }
+message SessionSummary {
+  string session_id = 1;
+  string title = 2;
+  optional string parent_session_id = 3;
+  optional string agent_id = 4;
+  string origin = 5;
+  ForkPoint fork_point = 6;
+  uint64 committed_seq = 7;
+  AgentState agent_state = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+// Projection is versioned adapter data derived from the same Session log.
+message Projection { uint32 schema_version = 1; google.protobuf.Struct data = 2; }
+message SessionEvent {
+  uint64 session_seq = 1;
+  google.protobuf.Timestamp committed_at = 2;
+  optional string turn_id = 3;
+  optional string step_id = 4;
+  string event_type = 5;
+  oneof body {
+    MessageRecord user_message = 10;
+    AssistantRecord assistant_message = 11;
+    AssistantRecord assistant_attempt = 12;
+    ToolCall tool_call = 13;
+    ToolResult tool_result = 14;
+    LifecycleRecord lifecycle = 15;
+    ApprovalAudit approval = 16;
+    ModelSelection model_selection = 17;
+    Extension extension = 18;
+  }
+}
+message MessageSource { string user_id = 1; string device_id = 2; string channel = 3; }
+message MessageRecord { string message_id = 1; repeated ContentBlock content = 2; MessageSource source = 3; }
+message AssistantRecord { string attempt_id = 1; uint64 revision = 2; repeated ContentBlock content = 3; string outcome = 4; }
+message LifecycleRecord { string outcome = 1; optional string reason = 2; }
+message ApprovalAudit { string approval_id = 1; optional string call_id = 2; ApprovalOutcome outcome = 3; }
+message Baseline {
+  SessionSummary session = 1;
+  uint64 cursor = 2;
+  Projection projection = 3;
+  repeated SessionEvent tail = 4;
+  repeated LiveAttempt active_attempts = 5;
+}
+message LiveAttempt { string attempt_id = 1; uint64 revision = 2; string turn_id = 3; string step_id = 4; uint64 next_chunk_index = 5; }
+
+message AuthChallengeRequest { string identity_id = 1; PeerKind peer_kind = 2; }
+message AuthChallengeResponse { string challenge_id = 1; bytes nonce = 2; google.protobuf.Timestamp expires_at = 3; string relay_id = 4; }
+enum PeerKind { PEER_KIND_UNSPECIFIED = 0; PEER_KIND_MOBILE = 1; PEER_KIND_HARNESS = 2; }
+
+message AuthProveRequest { string challenge_id = 1; bytes signature = 2; }
+message AuthProveResponse { string identity_id = 1; google.protobuf.Timestamp expires_at = 2; }
+
+message HarnessRegisterRequest { string harness_id = 1; bytes public_key = 2; string display_name = 3; }
+message HarnessRegisterResponse { string harness_id = 1; }
+enum PairMode { PAIR_MODE_UNSPECIFIED = 0; PAIR_MODE_OWNER = 1; PAIR_MODE_DEVICE_LINK = 2; PAIR_MODE_INVITE = 3; }
+
+message PairCreateRequest { Mutation mutation = 1; string harness_id = 2; PairMode mode = 3; }
+message PairCreateResponse { string pairing_id = 1; string pairing_code = 2; google.protobuf.Timestamp expires_at = 3; }
+
+message PairRedeemRequest { Mutation mutation = 1; string pairing_code = 2; string device_id = 3; bytes public_key = 4; bytes possession_signature = 5; }
+message PairRedeemResponse { string user_id = 1; string device_id = 2; string harness_id = 3; uint64 acl_version = 4; }
+message Membership { string user_id = 1; string device_id = 2; bytes public_key = 3; repeated MemberRole roles = 4; }
+
+message MembershipSnapshotRequest { uint64 acl_version = 1; repeated Membership members = 2; }
+message MembershipSnapshotResponse { uint64 applied_acl_version = 1; }
+
+message HarnessStatusRequest {  }
+message HarnessStatusResponse { bool online = 1; string adapter_version = 2; uint64 acl_version = 3; }
+
+message CapabilitiesGetRequest {  }
+message CapabilitiesGetResponse { repeated string operations = 1; repeated string extension_namespaces = 2; uint32 max_frame_bytes = 3; uint32 max_page_size = 4; repeated string content_types = 5; }
+
+message SessionListRequest { uint32 page_size = 1; optional string page_token = 2; }
+message SessionListResponse { repeated SessionSummary sessions = 1; optional string next_page_token = 2; }
+
+message SessionCreateRequest { Mutation mutation = 1; optional string title = 2; ModelSelection model = 3; }
+message SessionCreateResponse { Baseline baseline = 1; AgentRef agent = 2; }
+
+message SessionOpenRequest { string session_id = 1; bool resume_agent = 2; Mutation mutation = 3; }
+message SessionOpenResponse { Baseline baseline = 1; AgentRef agent = 2; }
+
+message SessionSnapshotRequest { string session_id = 1; uint32 tail_limit = 2; }
+message SessionSnapshotResponse { Baseline baseline = 1; }
+
+message SessionPageRequest { string session_id = 1; uint32 page_size = 2; oneof range { uint64 before_seq = 3; uint64 after_seq = 4; } }
+message SessionPageResponse { repeated SessionEvent events = 1; bool has_more = 2; uint64 committed_seq = 3; }
+
+message SessionFollowRequest { string session_id = 1; uint32 tail_limit = 2; }
+message SessionFollowResponse { string subscription_id = 1; Baseline baseline = 2; }
+
+message SessionUnfollowRequest { string subscription_id = 1; }
+message SessionUnfollowResponse {  }
+enum SendMode { SEND_MODE_UNSPECIFIED = 0; SEND_MODE_FOLLOWUP = 1; SEND_MODE_STEER = 2; SEND_MODE_INJECT = 3; }
+enum DeliveryState { DELIVERY_STATE_UNSPECIFIED = 0; DELIVERY_STATE_ACCEPTED = 1; DELIVERY_STATE_QUEUED = 2; DELIVERY_STATE_CLAIMED = 3; DELIVERY_STATE_COMMITTED = 4; DELIVERY_STATE_DISCARDED = 5; DELIVERY_STATE_REJECTED = 6; }
+message InboxItem { string message_id = 1; SendMode mode = 2; DeliveryState state = 3; repeated ContentBlock content = 4; bool editable = 5; }
+message Inbox { repeated InboxItem next_turn = 1; repeated InboxItem next_step = 2; }
+
+message AgentSendRequest { Mutation mutation = 1; string session_id = 2; string message_id = 3; repeated ContentBlock content = 4; SendMode mode = 5; }
+message AgentSendResponse { DeliveryState state = 1; Inbox inbox = 2; }
+
+message AgentInboxGetRequest { string session_id = 1; }
+message AgentInboxGetResponse { Inbox inbox = 1; }
+
+message AgentCancelRequest { Mutation mutation = 1; string session_id = 2; optional bool keep_inbox = 3; }
+message AgentCancelResponse { bool cancel_requested = 1; }
+
+message AgentStatusRequest { string session_id = 1; }
+message AgentStatusResponse { AgentRef agent = 1; Projection projection = 2; uint64 committed_seq = 3; Inbox inbox = 4; }
+
+message AgentCreateOrResumeRequest { Mutation mutation = 1; string session_id = 2; ModelSelection model = 3; }
+message AgentCreateOrResumeResponse { AgentRef agent = 1; }
+enum ApprovalPolicy { APPROVAL_POLICY_UNSPECIFIED = 0; APPROVAL_POLICY_ASK = 1; APPROVAL_POLICY_NEVER = 2; }
+enum ApprovalDecision { APPROVAL_DECISION_UNSPECIFIED = 0; APPROVAL_DECISION_ALLOW_ONCE = 1; APPROVAL_DECISION_REJECT = 2; }
+enum ApprovalOutcome { APPROVAL_OUTCOME_UNSPECIFIED = 0; APPROVAL_OUTCOME_ALLOWED_ONCE = 1; APPROVAL_OUTCOME_REJECTED = 2; APPROVAL_OUTCOME_CANCELLED = 3; APPROVAL_OUTCOME_UNAVAILABLE = 4; }
+enum ApprovalDecisionStatus { APPROVAL_DECISION_STATUS_UNSPECIFIED = 0; APPROVAL_DECISION_STATUS_ACCEPTED = 1; APPROVAL_DECISION_STATUS_STALE = 2; APPROVAL_DECISION_STATUS_FORBIDDEN = 3; APPROVAL_DECISION_STATUS_ALREADY_RESOLVED = 4; }
+// No raw tool arguments here. Grant is bound to current authenticated connection.
+message ApprovalRequest { string session_id = 1; string approval_id = 2; optional string call_id = 3; string tool_name = 4; string reason = 5; google.protobuf.Timestamp expires_at = 6; bytes decision_token = 7; }
+
+message ApprovalDecideRequest { Mutation mutation = 1; string session_id = 2; string approval_id = 3; bytes decision_token = 4; ApprovalDecision decision = 5; }
+message ApprovalDecideResponse { ApprovalDecisionStatus status = 1; }
+
+message ApprovalPendingRequest { string session_id = 1; }
+message ApprovalPendingResponse { repeated ApprovalRequest requests = 1; }
+
+message ApprovalPolicyGetRequest { string session_id = 1; }
+message ApprovalPolicyGetResponse { ApprovalPolicy policy = 1; }
+
+message ApprovalPolicySetRequest { Mutation mutation = 1; string session_id = 2; ApprovalPolicy policy = 3; }
+message ApprovalPolicySetResponse { ApprovalPolicy policy = 1; }
+
+message ModelCurrentRequest { string session_id = 1; }
+message ModelCurrentResponse { ModelSelection selection = 1; }
+message ModelOption { ModelSelection selection = 1; repeated string capabilities = 2; }
+
+message ModelListRequest { string session_id = 1; }
+message ModelListResponse { repeated ModelOption models = 1; }
+
+message ModelSelectRequest { Mutation mutation = 1; string session_id = 2; ModelSelection selection = 3; }
+message ModelSelectResponse { ModelSelection selection = 1; uint64 committed_seq = 2; }
+
+message SessionCommitted { string session_id = 1; repeated SessionEvent events = 2; Projection projection = 3; uint64 cursor = 4; }
+message AssistantLiveStart { string session_id = 1; LiveAttempt attempt = 2; }
+message LiveChunk { uint64 chunk_index = 1; ContentBlock content = 2; }
+message AssistantLiveChunk { string session_id = 1; string attempt_id = 2; uint64 revision = 3; repeated LiveChunk chunks = 4; }
+enum AttemptOutcome { ATTEMPT_OUTCOME_UNSPECIFIED = 0; ATTEMPT_OUTCOME_COMMITTED = 1; ATTEMPT_OUTCOME_ABANDONED = 2; ATTEMPT_OUTCOME_FAILED = 3; ATTEMPT_OUTCOME_CANCELLED = 4; }
+message AssistantLiveEnd { string session_id = 1; string attempt_id = 2; uint64 revision = 3; AttemptOutcome outcome = 4; optional uint64 committed_seq = 5; }
+message AgentStatusChanged { AgentRef agent = 1; uint64 committed_seq = 2; }
+message InboxChanged { string session_id = 1; Inbox inbox = 2; }
+message ApprovalResolved { string session_id = 1; string approval_id = 2; ApprovalOutcome outcome = 3; }
+message SubscriptionReset { string subscription_id = 1; string reason = 2; }
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_UNAUTHENTICATED = 1;
+  ERROR_CODE_FORBIDDEN = 2;
+  ERROR_CODE_HARNESS_OFFLINE = 3;
+  ERROR_CODE_SESSION_NOT_FOUND = 4;
+  ERROR_CODE_AGENT_NOT_LOADED = 5;
+  ERROR_CODE_AGENT_BUSY = 6;
+  ERROR_CODE_OPERATION_ALREADY_HANDLED = 7;
+  ERROR_CODE_SUBSCRIPTION_RESET_REQUIRED = 8;
+  ERROR_CODE_APPROVAL_STALE = 9;
+  ERROR_CODE_APPROVAL_UNAVAILABLE = 10;
+  ERROR_CODE_UNSUPPORTED_OPERATION = 11;
+  ERROR_CODE_UPSTREAM_INCOMPATIBLE = 12;
+  ERROR_CODE_INTERNAL = 13;
+  ERROR_CODE_INVALID_ARGUMENT = 14;
+  ERROR_CODE_IDEMPOTENCY_CONFLICT = 15;
+  ERROR_CODE_ACL_NOT_SYNCED = 16;
+  ERROR_CODE_RESOURCE_EXHAUSTED = 17;
+}
+message ProtocolError { ErrorCode code = 1; string message = 2; bool retryable = 3; }
+// Unknown operation names receive UNSUPPORTED_OPERATION; never execute bytes.
+message UnsupportedRequest { string operation = 1; }
+message Envelope {
+  uint32 version = 1;
+  string request_id = 2;
+  optional string reply_to = 3;
+  optional string harness_id = 4;
+  optional string subscription_id = 5;
+  oneof body { Request request = 10; Response response = 11; Event event = 12; ProtocolError error = 13; }
+}
+// Only authenticated Relay -> Harness connections may carry this wrapper.
+// Mobile frames always use Envelope directly and cannot supply principal/routes.
+message RelayForward { string route_id = 1; Principal principal = 2; Envelope envelope = 3; string connection_id = 4; }
+// Internal Relay -> Harness notification: invalidate all connection-bound state.
+message RelayConnectionClosed { string connection_id = 1; }
+message HarnessForward { string route_id = 1; Envelope envelope = 2; }
+
+message Request {
+  oneof operation {
+    AuthChallengeRequest auth_challenge = 10;
+    AuthProveRequest auth_prove = 11;
+    HarnessRegisterRequest harness_register = 12;
+    PairCreateRequest pair_create = 13;
+    PairRedeemRequest pair_redeem = 14;
+    MembershipSnapshotRequest membership_snapshot = 15;
+    HarnessStatusRequest harness_status = 16;
+    CapabilitiesGetRequest capabilities_get = 17;
+    SessionListRequest session_list = 18;
+    SessionCreateRequest session_create = 19;
+    SessionOpenRequest session_open = 20;
+    SessionSnapshotRequest session_snapshot = 21;
+    SessionPageRequest session_page = 22;
+    SessionFollowRequest session_follow = 23;
+    SessionUnfollowRequest session_unfollow = 24;
+    AgentSendRequest agent_send = 25;
+    AgentInboxGetRequest agent_inbox_get = 26;
+    AgentCancelRequest agent_cancel = 27;
+    AgentStatusRequest agent_status = 28;
+    AgentCreateOrResumeRequest agent_create_or_resume = 29;
+    ApprovalDecideRequest approval_decide = 30;
+    ApprovalPendingRequest approval_pending = 31;
+    ApprovalPolicyGetRequest approval_policy_get = 32;
+    ApprovalPolicySetRequest approval_policy_set = 33;
+    ModelCurrentRequest model_current = 34;
+    ModelListRequest model_list = 35;
+    ModelSelectRequest model_select = 36;
+    UnsupportedRequest unsupported = 100;
+  }
+}
+
+message Response {
+  oneof operation {
+    AuthChallengeResponse auth_challenge = 10;
+    AuthProveResponse auth_prove = 11;
+    HarnessRegisterResponse harness_register = 12;
+    PairCreateResponse pair_create = 13;
+    PairRedeemResponse pair_redeem = 14;
+    MembershipSnapshotResponse membership_snapshot = 15;
+    HarnessStatusResponse harness_status = 16;
+    CapabilitiesGetResponse capabilities_get = 17;
+    SessionListResponse session_list = 18;
+    SessionCreateResponse session_create = 19;
+    SessionOpenResponse session_open = 20;
+    SessionSnapshotResponse session_snapshot = 21;
+    SessionPageResponse session_page = 22;
+    SessionFollowResponse session_follow = 23;
+    SessionUnfollowResponse session_unfollow = 24;
+    AgentSendResponse agent_send = 25;
+    AgentInboxGetResponse agent_inbox_get = 26;
+    AgentCancelResponse agent_cancel = 27;
+    AgentStatusResponse agent_status = 28;
+    AgentCreateOrResumeResponse agent_create_or_resume = 29;
+    ApprovalDecideResponse approval_decide = 30;
+    ApprovalPendingResponse approval_pending = 31;
+    ApprovalPolicyGetResponse approval_policy_get = 32;
+    ApprovalPolicySetResponse approval_policy_set = 33;
+    ModelCurrentResponse model_current = 34;
+    ModelListResponse model_list = 35;
+    ModelSelectResponse model_select = 36;
+  }
+}
+
+message Event {
+  oneof operation {
+    SessionCommitted session_committed = 10;
+    AssistantLiveStart assistant_live_start = 11;
+    AssistantLiveChunk assistant_live_chunk = 12;
+    AssistantLiveEnd assistant_live_end = 13;
+    AgentStatusChanged agent_status_changed = 14;
+    InboxChanged inbox_changed = 15;
+    ApprovalRequest approval_request = 16;
+    ApprovalResolved approval_resolved = 17;
+    SubscriptionReset subscription_reset = 18;
+    RelayConnectionClosed relay_connection_closed = 19;
+  }
+}

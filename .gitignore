@@ -1,0 +1,6 @@
+.gen/
+/target/
+/data/
+/.venv/
+/tests/generated/
+__pycache__/
