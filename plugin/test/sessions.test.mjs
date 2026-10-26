@@ -14,7 +14,7 @@ const events = [
   { type: 'turn/start', seq: 1, time: NOW, data: { turn: 1 } },
   {
     type: 'user/message', seq: 2, time: NOW,
-    data: { message: { id: 'm1', content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } } },
+    data: { id: 'm1', content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } },
   },
   {
     type: 'assistant/message', seq: 3, time: NOW,
@@ -127,6 +127,7 @@ test('session list/create/open/snapshot/page produce valid HRP messages', async 
   const opened = await adapter.handlers.session_open({ session_id: 's1', resume_agent: true, mutation: { client_operation_id: 'open-1' } }, { principal });
   encode('hrp.v1.SessionOpenResponse', opened);
   assert.equal(opened.baseline.tail.length, 6);
+  assert.equal(opened.baseline.tail.find((event) => event.event_type === 'user/message').user_message.content[0].text, 'hello');
   assert.equal(opened.baseline.session.committed_seq, 6);
 
   const snapshot = await adapter.handlers.session_snapshot({ session_id: 's1', tail_limit: 2 }, { principal });

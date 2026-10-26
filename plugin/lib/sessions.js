@@ -121,7 +121,9 @@ function mapEvent(event, principal) {
   const data = event.data || {};
   switch (event.type) {
     case 'user/message': {
-      const message = data.message || {};
+      // DSH stores UserMessage directly in data (content/source/id), unlike
+      // assistant/message which nests its MessageRecord under data.message.
+      const message = data.message || data;
       const source = message.source || {};
       return {
         ...base,
@@ -243,7 +245,7 @@ function projectionMessages(events, principal) {
   const messages = [];
   for (const event of events) {
     if (event.type === 'user/message') {
-      const message = event.data?.message;
+      const message = event.data?.message || event.data;
       if (message) messages.push({
         message_id: String(message.id || ''),
         role: 'user',
