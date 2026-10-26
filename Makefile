@@ -2,8 +2,17 @@
 proto-check:
 	@out=$$(mktemp); trap 'rm -f "$$out"' EXIT; protoc -I proto --include_imports --descriptor_set_out="$$out" proto/hrp/v1/hrp.proto
 
-.PHONY: build check python-setup python-proto e2e run
-build:
+.PHONY: build build-server build-debug check python-setup python-proto e2e run
+build: build-server
+
+build-server:
+	cargo build --release --locked
+	mkdir -p dist
+	cp target/release/dsh-remote dist/dsh-remote
+	strip dist/dsh-remote
+	cd dist && sha256sum dsh-remote > SHA256SUMS
+
+build-debug:
 	cargo build --locked
 
 check: proto-check
@@ -19,15 +28,14 @@ python-proto:
 	mkdir -p tests/generated
 	protoc -I proto --python_out=tests/generated proto/hrp/v1/hrp.proto
 
-e2e: build python-proto
+e2e: build-debug python-proto
 	PYTHONPATH=tests/generated .venv/bin/python tests/e2e.py
 
-run:
-	cargo run --locked
+run: build
+	./start.sh
 
 .PHONY: chamber-smoke
-chamber-smoke:
-	cargo build --release --locked
+chamber-smoke: build
 	python3 tests/chamber_smoke.py
 
 .PHONY: android-check android-e2e

@@ -1,11 +1,10 @@
 [chamber]
 name = "dsh-remote"
 schema_version = 1
-prepare = "cargo build --release --locked"
 
 [proxyhttp]
 working_directory = "."
-script = "./scripts/start.sh"
+script = "./start.sh"
 upstream = "http://127.0.0.1:53214"
 route = "/dsh-remote"
 health_path = "/healthz"
