@@ -106,6 +106,6 @@ Rust 回归额外检查错误 Harness/响应类型不能抢路由、旧 ACL ack�
 可连接 Relay、完成 Ed25519 认证、owner 配对，并把本机 DSH 的原生 Session 目录、
 Agent 和模型请求完整桥接到协议。Session 目录与本地工作区一致，不设插件专属会话；
 已认证成员可以读取工作区中的全部 Session，`session.create` 创建的也是普通本机
-Session。远程审批、Inbox 队列编辑、图片/文件传输和成员撤销管理 API 仍未实现；
-发布前仍需真实 Android 端联调。字段号与枚举值属于 wire 契约；删除字段必须 reserved，
-不得复用。
+Session。成员撤销 API 已实现：设置页可移除设备，包括重置旧 owner；远程审批、
+Inbox 队列编辑、图片/文件传输仍未实现；发布前仍需真实 Android 端联调。
+字段号与枚举值属于 wire 契约；删除字段必须 reserved，不得复用。
