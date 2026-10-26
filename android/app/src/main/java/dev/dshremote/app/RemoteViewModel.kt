@@ -57,7 +57,8 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
                 val echo = current.localEcho
                 val shown = echo != null && c != null && c.events.any { event ->
                     event.hasUserMessage() && event.userMessage.contentList.any { block ->
-                        block.valueCase == ContentBlock.ValueCase.TEXT && block.text == echo.text
+                        block.valueCase == ContentBlock.ValueCase.TEXT &&
+                            (block.text == echo.text || block.text.startsWith(echo.text) || stripRuntimeContext(block.text) == echo.text)
                     }
                 }
                 current.copy(conversation = c, localEcho = if (shown) null else current.localEcho)

@@ -11,6 +11,7 @@
 - followup 下一轮消息与 steer 运行中引导；显示 Inbox 接受回执。
 - 实时输出按 attempt/revision/chunk_index 合并，持久记录替换暂态展示；进入会话默认滚到底部。
 - 发送成功后显示本地回显，直到持久 user/message 到达，避免看不到自己刚发送的正文。
+- 用户消息里由 DSH 自动附加的 runtime context 尾部（Time sampled / Browser time zone / Elapsed…）在显示时剥离；用户自己用代码块引用的原文不删。
 - 聊天按轮次折叠：执行过程（工具/思考）可逐轮展开，工具/结果先显示一行再点开详情；助手最终输出在折叠区外独立显示且永不折叠；job/compaction 等插件扩展事件不显示。
 - 助手最终输出使用 Markwon（Android 原生 Markdown 库）渲染：标题、列表、引用、代码块、GFM 表格、粗体/斜体/删除线、行内代码和可点击链接。
 - SessionSeq/实时块出现缺口后提示重新同步；断线清除实时片段与审批凭证。

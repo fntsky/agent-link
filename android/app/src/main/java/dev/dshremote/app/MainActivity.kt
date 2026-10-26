@@ -298,7 +298,7 @@ private fun Chat(state: RemoteUi, vm: RemoteViewModel, cancel: () -> Unit, aband
             items(rounds, key = { "round:${it.key}" }) { round ->
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     round.user?.let { event ->
-                        val text = event.userMessage.contentList.joinToString("\n") { it.displayText() }
+                        val text = stripRuntimeContext(event.userMessage.contentList.joinToString("\n") { it.displayText() })
                         if (text.isNotBlank()) MessageCard("你", text, true, foldable = true)
                     }
                     if (roundHasProcess(round)) RoundSection(round)
