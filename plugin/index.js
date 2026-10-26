@@ -155,6 +155,13 @@ export async function apply(ctx) {
       case 'pair.clear':
         adapter.clearPairing();
         return adapter.status();
+      case 'members.revoke': {
+        if (typeof payload.deviceId !== 'string' || payload.deviceId.trim() === '') {
+          throw new AdapterError('ERROR_CODE_INVALID_ARGUMENT', 'deviceId is required');
+        }
+        const revoked = await adapter.revokeMember(payload.deviceId);
+        return { ...adapter.status(), revoked };
+      }
       case 'identity.info':
         return {
           harnessId: state.harnessId,

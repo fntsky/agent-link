@@ -25,6 +25,24 @@ test('membership acknowledgement fixture round-trips', () => {
   assert.deepEqual(encode('hrp.v1.Envelope', value), bytes);
 });
 
+test('member revoke request and response round-trip', () => {
+  const request = {
+    member_revoke: {
+      mutation: { client_operation_id: 'op-1' },
+      harness_id: 'h-1',
+      device_id: 'd-1',
+    },
+  };
+  const bytes = encode('hrp.v1.Request', request);
+  const decoded = decode('hrp.v1.Request', bytes);
+  assert.deepEqual(decoded.member_revoke, request.member_revoke);
+  assert.deepEqual(encode('hrp.v1.Request', decoded), bytes);
+
+  const response = { member_revoke: { acl_version: 2, removed: true } };
+  const responseBytes = encode('hrp.v1.Response', response);
+  assert.deepEqual(decode('hrp.v1.Response', responseBytes), response);
+});
+
 test('nested Struct and bytes fields round-trip', () => {
   const bytes = Buffer.from(fixtures.agent_send, 'base64');
   const value = decode('hrp.v1.Envelope', bytes);

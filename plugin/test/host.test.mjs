@@ -94,6 +94,16 @@ test('configure validates the remote address and preserves the token flag', asyn
   assert.equal(value.displayName, 'Test Harness');
 });
 
+test('member removal validates the device id before touching the relay', async () => {
+  const { route } = await mount();
+  const res = await invoke(route, request({
+    type: 'client-request', rpcId: 'r6', method: 'members.revoke', payload: {},
+  }));
+  const value = JSON.parse(res.body).result;
+  assert.equal(value.ok, false);
+  assert.equal(value.error.code, 'ERROR_CODE_INVALID_ARGUMENT');
+});
+
 test('pairing is unavailable while offline', async () => {
   const { route } = await mount();
   const res = await invoke(route, request({ type: 'client-request', rpcId: 'r5', method: 'pair.create', payload: {} }));

@@ -15,6 +15,7 @@
 | 连接与身份 | Ed25519 密钥、`harness.register`、`auth.challenge/prove`、断线重连 |
 | ACL | 处理 Relay 的 `membership.snapshot`，校验 principal、成员和 ACL 版本 |
 | 配对 | Harness 发起 owner 配对，设置页显示一次性配对码、有效期和复制按钮 |
+| 成员管理 | 设置页列出已配对设备，可移除任意成员（含 owner）；移除后设备立即失去访问权限 |
 | 设置页 | `settings.plugins.tab`：远程地址、显示名称、注册令牌、连接状态、设备列表 |
 | 状态查询 | `harness.status` 由 Relay 处理；插件状态 RPC 只对已认证浏览器开放 |
 | Session | `session.list/create/open/snapshot/page/follow/unfollow`；目录与本地工作区一致，不做插件专属过滤 |
@@ -29,6 +30,8 @@
   或单独的远程目录；`session.create` 创建的就是普通本机 Session。
 - 成员 ACL 是唯一边界：每个业务请求校验 Relay 注入的 `RelayForward.principal`、
   成员关系和 `acl_version`；不信任手机构造的 principal。未认证/已撤销成员不可读。
+- 设置页的“移除”调用 Relay `member_revoke`，同时会关闭该设备的连接、提升 ACL
+  版本并刷新成员列表。移除最后一个 owner 后可以重新生成 owner 配对码。
 - 每个订阅绑定手机 `connection_id`；手机断线或 Relay 断线时清理订阅，
   但不取消 Agent、不删除 Session。
 - 设置 RPC 走 DSH Connection 的浏览器认证和 Host/Origin 检查；未认证请求返回
@@ -38,13 +41,16 @@ Session 标题直接取 DSH 的 `title` 投影；没有标题时依次使用工�
 因此手机与工作区的显示名一致。`session.create` 带标题时会通过 `sessionController.rename`
 写入原生 `session/title` 事件，之后在工作区也能看到。
 
+移除成员时 Relay 会推送新的 `membership.snapshot`，插件在
+[adapter.js](lib/adapter.js) 里更新 ACL/成员列表；被移除设备的连接会收到
+`relay_connection_closed` 并清理订阅。
+
 ### 当前限制
 
 - 远程审批（`approval.*`）只返回空/不可用，没有注册 DSH 的 approval answerer；
   `approval_policy_set` 明确返回不支持。
 - Inbox 查询返回空，队列编辑不在本版范围。
 - 只处理文本 `ContentBlock`；图片、文件、工作区传输未实现。
-- 尚未实现成员撤销入口；Relay 当前也没有该 API。
 - 真实 Android 端联调仍需在手机端完成配对后验证。
 
 ## 安装
@@ -105,8 +111,7 @@ Session 标题直接取 DSH 的 `title` 投影；没有标题时依次使用工�
 ## 测试
 
 ```sh
-node --test plugin/test/codec.test.mjs
-node --test plugin/test/sessions.test.mjs
+node --test plugin/test/*.test.mjs
 ```
 
 手工联调：

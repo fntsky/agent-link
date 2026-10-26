@@ -306,6 +306,19 @@ export class RelayHarness extends EventEmitter {
     return this.pairing;
   }
 
+  async revokeMember(deviceId) {
+    if (!this.ready) throw new AdapterError('ERROR_CODE_HARNESS_OFFLINE', '暂时无法移除设备：Harness 尚未连接 Relay');
+    const device = String(deviceId || '').trim();
+    if (!device) throw new AdapterError('ERROR_CODE_INVALID_ARGUMENT', 'device_id is required');
+    const response = await this.rpc('member_revoke', {
+      mutation: { client_operation_id: randomUUID() },
+      harness_id: this.state.harnessId,
+      device_id: device,
+    });
+    this.#publish();
+    return response;
+  }
+
   clearPairing() {
     this.pairing = null;
     this.#publish();

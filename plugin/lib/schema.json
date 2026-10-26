@@ -1031,6 +1031,45 @@
     }
    ]
   },
+  "hrp.v1.MemberRevokeRequest": {
+   "fields": [
+    {
+     "name": "mutation",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Mutation"
+    },
+    {
+     "name": "harness_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "device_id",
+     "number": 3,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.MemberRevokeResponse": {
+   "fields": [
+    {
+     "name": "acl_version",
+     "number": 1,
+     "type": "uint64",
+     "label": "optional"
+    },
+    {
+     "name": "removed",
+     "number": 2,
+     "type": "bool",
+     "label": "optional"
+    }
+   ]
+  },
   "hrp.v1.HarnessStatusRequest": {
    "fields": []
   },
@@ -2451,6 +2490,13 @@
      "typeName": "hrp.v1.ModelSelectRequest"
     },
     {
+     "name": "member_revoke",
+     "number": 37,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.MemberRevokeRequest"
+    },
+    {
      "name": "unsupported",
      "number": 100,
      "type": "message",
@@ -2487,6 +2533,7 @@
      "model_current",
      "model_list",
      "model_select",
+     "member_revoke",
      "unsupported"
     ]
    }
@@ -2681,6 +2728,13 @@
      "type": "message",
      "label": "optional",
      "typeName": "hrp.v1.ModelSelectResponse"
+    },
+    {
+     "name": "member_revoke",
+     "number": 37,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.MemberRevokeResponse"
     }
    ],
    "oneofs": {
@@ -2711,7 +2765,8 @@
      "approval_policy_set",
      "model_current",
      "model_list",
-     "model_select"
+     "model_select",
+     "member_revoke"
     ]
    }
   },
@@ -2904,7 +2959,8 @@
    "ERROR_CODE_INVALID_ARGUMENT": 14,
    "ERROR_CODE_IDEMPOTENCY_CONFLICT": 15,
    "ERROR_CODE_ACL_NOT_SYNCED": 16,
-   "ERROR_CODE_RESOURCE_EXHAUSTED": 17
+   "ERROR_CODE_RESOURCE_EXHAUSTED": 17,
+   "ERROR_CODE_MEMBER_NOT_FOUND": 18
   }
  }
 }

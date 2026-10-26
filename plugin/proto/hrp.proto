@@ -41,6 +41,10 @@ message ModelSelection { string provider = 1; string model = 2; optional string 
 enum AgentState { AGENT_STATE_UNSPECIFIED = 0; AGENT_STATE_IDLE = 1; AGENT_STATE_RUNNING = 2; AGENT_STATE_UNLOADED = 3; }
 message AgentRef { string session_id = 1; optional string agent_id = 2; AgentState state = 3; }
 message ForkPoint { string session_id = 1; uint64 session_seq = 2; }
+// SessionList and SessionSummary expose the Harness native workspace directory.
+// There is no adapter-owned Session directory: every authenticated member sees
+// the same Sessions the local workspace shows, and SessionCreate creates a
+// normal native Session that also appears there.
 message SessionSummary {
   string session_id = 1;
   string title = 2;
@@ -106,6 +110,19 @@ message Membership { string user_id = 1; string device_id = 2; bytes public_key 
 
 message MembershipSnapshotRequest { uint64 acl_version = 1; repeated Membership members = 2; }
 message MembershipSnapshotResponse { uint64 applied_acl_version = 1; }
+
+// Harness-only membership administration. Removing the last owner allows a new
+// owner pairing code to be created. Revocation bumps the ACL version, closes the
+// device's relay connections and forces a fresh MembershipSnapshot.
+message MemberRevokeRequest {
+  Mutation mutation = 1;
+  string harness_id = 2;
+  string device_id = 3;
+}
+message MemberRevokeResponse {
+  uint64 acl_version = 1;
+  bool removed = 2;
+}
 
 message HarnessStatusRequest {  }
 message HarnessStatusResponse { bool online = 1; string adapter_version = 2; uint64 acl_version = 3; }
@@ -210,6 +227,7 @@ enum ErrorCode {
   ERROR_CODE_IDEMPOTENCY_CONFLICT = 15;
   ERROR_CODE_ACL_NOT_SYNCED = 16;
   ERROR_CODE_RESOURCE_EXHAUSTED = 17;
+  ERROR_CODE_MEMBER_NOT_FOUND = 18;
 }
 message ProtocolError { ErrorCode code = 1; string message = 2; bool retryable = 3; }
 // Unknown operation names receive UNSUPPORTED_OPERATION; never execute bytes.
@@ -258,6 +276,7 @@ message Request {
     ModelCurrentRequest model_current = 34;
     ModelListRequest model_list = 35;
     ModelSelectRequest model_select = 36;
+    MemberRevokeRequest member_revoke = 37;
     UnsupportedRequest unsupported = 100;
   }
 }
@@ -291,6 +310,7 @@ message Response {
     ModelCurrentResponse model_current = 34;
     ModelListResponse model_list = 35;
     ModelSelectResponse model_select = 36;
+    MemberRevokeResponse member_revoke = 37;
   }
 }
 

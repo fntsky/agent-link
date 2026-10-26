@@ -29,6 +29,13 @@ window.__ModuleLoader__.load({
       pairExpires: '剩余有效期',
       pairExpired: '配对码已过期，请重新生成。',
       pairBusy: 'Relay 上已有未使用的配对码，请等待其过期后再生成。',
+      ownerExists: '已有 owner 设备。给新手机配对请在该手机的「设备与分享」里生成绑定码；要重新生成 owner 码，请先移除旧 owner。',
+      remove: '移除',
+      confirmRemove: '确认移除',
+      cancel: '取消',
+      removeWarning: '移除后该设备将立即失去访问权限，需要重新配对才能恢复。',
+      removeOwnerWarning: '这是 owner 设备。移除后该设备立即失去权限；如果它是最后一台 owner，之后可以重新生成 owner 配对码。',
+      memberRemoved: '设备已移除',
       stateOnline: '已连接',
       stateConnecting: '连接中',
       stateHandshaking: '握手中',
@@ -77,6 +84,13 @@ window.__ModuleLoader__.load({
       pairExpires: 'Expires in',
       pairExpired: 'This pairing code has expired. Create a new one.',
       pairBusy: 'The relay already has an unused pairing code. Wait for it to expire.',
+      ownerExists: 'An owner device already exists. Pair a new phone from that phone’s “Devices and sharing” menu, or remove the old owner before creating a new owner code.',
+      remove: 'Remove',
+      confirmRemove: 'Confirm removal',
+      cancel: 'Cancel',
+      removeWarning: 'The device loses access immediately and must be paired again.',
+      removeOwnerWarning: 'This is the owner device. Removing it revokes access immediately; if it is the last owner you can create a new owner pairing code afterwards.',
+      memberRemoved: 'Device removed',
       stateOnline: 'Online',
       stateConnecting: 'Connecting',
       stateHandshaking: 'Handshaking',
@@ -140,6 +154,10 @@ window.__ModuleLoader__.load({
       .dshr-pairCode code { flex: 1; min-width: 220px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 16px; letter-spacing: 0.16em; line-height: 24px; color: var(--dsw-alias-label-primary); word-break: break-all; }
       .dshr-pairMeta { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--dsw-alias-label-secondary); }
       .dshr-member { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 10px 0; border-top: 0.5px solid var(--dsw-alias-border-l1); font-size: 12px; line-height: 18px; }
+      .dshr-memberSide { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+      .dshr-buttonSmall { height: 26px; padding: 0 8px; font-size: 12px; }
+      .dshr-memberConfirm { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+      .dshr-warning { grid-column: 1 / -1; color: var(--dsw-alias-state-error-primary); font-size: 12px; line-height: 18px; padding-top: 4px; }
       .dshr-member:first-child { border-top: 0; padding-top: 0; }
       .dshr-memberId { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; overflow-wrap: anywhere; }
       .dshr-memberRole { color: var(--dsw-alias-label-secondary); text-align: right; }
@@ -233,6 +251,7 @@ window.__ModuleLoader__.load({
       const [error, setError] = React.useState('');
       const [notice, setNotice] = React.useState('');
       const [copied, setCopied] = React.useState(false);
+      const [confirmDevice, setConfirmDevice] = React.useState('');
       const [now, setNow] = React.useState(Date.now());
       const [, forceLocale] = React.useReducer((value) => value + 1, 0);
 
@@ -320,6 +339,13 @@ window.__ModuleLoader__.load({
         await refresh();
       });
 
+      const removeMember = (deviceId) => run('remove', async () => {
+        await call('members.revoke', { deviceId });
+        setConfirmDevice('');
+        setNotice(t('memberRemoved'));
+        await refresh();
+      });
+
       const copyCode = async (code) => {
         try {
           await navigator.clipboard.writeText(code);
@@ -336,6 +362,7 @@ window.__ModuleLoader__.load({
       const pairingExpired = pairing ? pairing.expiresAt <= now : false;
       const displayCode = pairing ? String(pairing.code || '').replace(/(.{8})/g, '$1 ').trim() : '';
       const members = status?.members || [];
+      const hasOwner = members.some((member) => (member.roles || []).some((role) => role.endsWith('OWNER')));
 
       return h('div', { className: 'dshr-page' },
         h('header', { className: 'dshr-head' },
@@ -407,11 +434,13 @@ window.__ModuleLoader__.load({
           action: h('button', {
             className: 'dshr-button',
             type: 'button',
-            disabled: busy !== '' || status?.state !== 'online' || Boolean(pairing && !pairingExpired),
+            disabled: busy !== '' || status?.state !== 'online' || hasOwner || Boolean(pairing && !pairingExpired),
             onClick: createPairing,
           }, busy === 'pair' ? '…' : t('createPairing')),
         },
-          pairing && !pairingExpired
+          hasOwner
+            ? h('p', { className: 'dshr-hint' }, t('ownerExists'))
+            : pairing && !pairingExpired
             ? h('div', null,
                 h('p', { className: 'dshr-hint' }, t('pairHint')),
                 h('div', { className: 'dshr-pairCode' },
@@ -427,15 +456,28 @@ window.__ModuleLoader__.load({
         h(Card, { title: `${t('sectionMembers')} (${members.length})` },
           members.length === 0
             ? h('p', { className: 'dshr-empty' }, t('noMembers'))
-            : members.map((member) => h('div', { className: 'dshr-member', key: member.deviceId },
-                h('div', null,
-                  h('div', { className: 'dshr-memberId' }, member.deviceId),
-                  h('div', { className: 'dshr-hint' }, `${t('userId')}: ${member.userId || '—'}`),
-                ),
-                h('div', { className: 'dshr-memberRole' },
-                  (member.roles || []).map((role) => role.endsWith('OWNER') ? t('roleOwner') : t('roleMember')).join(' · ') || t('roleMember'),
-                ),
-              )),
+            : members.map((member) => {
+                const owner = (member.roles || []).some((role) => role.endsWith('OWNER'));
+                const confirming = confirmDevice === member.deviceId;
+                return h('div', { className: 'dshr-member', key: member.deviceId },
+                  h('div', null,
+                    h('div', { className: 'dshr-memberId' }, member.deviceId),
+                    h('div', { className: 'dshr-hint' }, `${t('userId')}: ${member.userId || '—'}`),
+                  ),
+                  h('div', { className: 'dshr-memberSide' },
+                    h('div', { className: 'dshr-memberRole' },
+                      (member.roles || []).map((role) => role.endsWith('OWNER') ? t('roleOwner') : t('roleMember')).join(' · ') || t('roleMember'),
+                    ),
+                    confirming
+                      ? h('div', { className: 'dshr-memberConfirm' },
+                          h('button', { className: 'dshr-button dshr-buttonSmall', type: 'button', 'data-danger': 'true', disabled: busy !== '', onClick: () => removeMember(member.deviceId) }, busy === 'remove' ? '…' : t('confirmRemove')),
+                          h('button', { className: 'dshr-button dshr-buttonSmall', type: 'button', disabled: busy !== '', onClick: () => setConfirmDevice('') }, t('cancel')),
+                        )
+                      : h('button', { className: 'dshr-button dshr-buttonSmall', type: 'button', disabled: busy !== '', onClick: () => setConfirmDevice(member.deviceId) }, t('remove')),
+                  ),
+                  confirming ? h('div', { className: 'dshr-warning' }, owner ? t('removeOwnerWarning') : t('removeWarning')) : null,
+                );
+              }),
         ),
         h('p', { className: 'dshr-hint' }, t('identityHint')),
       );
