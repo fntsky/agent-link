@@ -154,6 +154,7 @@ private fun ConnectPanel(state: RemoteUi, vm: RemoteViewModel, modifier: Modifie
         item { OutlinedTextField(code, { code = it }, Modifier.fillMaxWidth(), label = { Text("首次连接的配对码") }, supportingText = { Text("已配对设备留空即可；配对码由 Harness 或已有设备提供。") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, enabled = !state.busy) }
         item { Button(onClick = { vm.connect(address, code); code = "" }, Modifier.fillMaxWidth().height(52.dp), enabled = address.isNotBlank() && !state.busy) { Icon(Icons.Default.Link, null); Spacer(Modifier.width(8.dp)); Text("连接 Harness") } }
         item { Text("设备私钥在本机加密保存。仅连接和认证不会读取会话历史。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { Text("DSH Remote v${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
@@ -394,11 +395,20 @@ private fun RoundSection(round: ChatRound) {
             Column(Modifier.padding(start = 10.dp, top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (event in round.events) {
                     when {
-                        event.hasToolCall() -> ToolRow(event, results[event.toolCall.callId])
+                        event.hasToolCall() -> ToolRow(
+                            event.toolCall.callId,
+                            event.toolCall.toolName,
+                            event.toolCall.arguments,
+                            results[event.toolCall.callId],
+                        )
                         event.hasAssistantMessage() -> {
                             val blocks = event.assistantMessage.contentList
                             blocks.filter { it.valueCase == ContentBlock.ValueCase.REASONING }.forEach { ReasoningRow(it.reasoning) }
-                            val final = blocks.filter { it.valueCase != ContentBlock.ValueCase.REASONING }
+                            blocks.filter { it.valueCase == ContentBlock.ValueCase.TOOL_CALL }.forEach { block ->
+                                val tool = block.toolCall
+                                ToolRow(tool.callId, tool.toolName, tool.arguments, results[tool.callId])
+                            }
+                            val final = blocks.filter { it.valueCase != ContentBlock.ValueCase.REASONING && it.valueCase != ContentBlock.ValueCase.TOOL_CALL }
                             if (final.isNotEmpty()) MessageCard("Harness", final.joinToString("\n") { it.displayText() }, false, foldable = true)
                         }
                         event.hasAssistantAttempt() -> {
@@ -431,11 +441,10 @@ private fun ReasoningRow(text: String) {
 }
 
 @Composable
-private fun ToolRow(call: SessionEvent, result: SessionEvent?) {
-    var open by remember(call.sessionSeq) { mutableStateOf(false) }
-    val tool = call.toolCall
-    val summary = toolSummary(tool.arguments)
-    val title = toolTitle(tool.toolName)
+private fun ToolRow(callId: String, toolName: String, arguments: Struct, result: SessionEvent?) {
+    var open by remember(callId) { mutableStateOf(false) }
+    val summary = toolSummary(arguments)
+    val title = toolTitle(toolName)
     val output = result?.toolResult?.contentList?.joinToString("\n") { it.displayText() }?.ifBlank { "（无输出）" }
     Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
         Row(Modifier.fillMaxWidth().clickable { open = !open }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -449,8 +458,8 @@ private fun ToolRow(call: SessionEvent, result: SessionEvent?) {
         if (open) {
             Surface(Modifier.fillMaxWidth().padding(start = 24.dp, top = 2.dp, bottom = 6.dp), shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("调用 ${tool.callId}", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    SelectionContainer { Text(structText(tool.arguments), style = MaterialTheme.typography.bodySmall) }
+                    Text("调用 $callId", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    SelectionContainer { Text(structText(arguments), style = MaterialTheme.typography.bodySmall) }
                     if (output != null) {
                         Text(if (result?.toolResult?.isError == true) "错误输出" else "输出", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         SelectionContainer { Text(output, style = MaterialTheme.typography.bodySmall) }
