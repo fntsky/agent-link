@@ -386,6 +386,8 @@ export class RelayHarness extends EventEmitter {
         const operation = oneof('hrp.v1.Response', envelope.response, 'operation');
         if (!operation) {
           entry.reject(new AdapterError('ERROR_CODE_INVALID_ARGUMENT', 'relay response has no operation'));
+        } else if (operation !== entry.operation) {
+          entry.reject(new AdapterError('ERROR_CODE_INVALID_ARGUMENT', `relay response ${operation} does not match request ${entry.operation}`));
         } else {
           entry.resolve(envelope.response[operation] || {});
         }
