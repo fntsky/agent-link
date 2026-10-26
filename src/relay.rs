@@ -145,6 +145,7 @@ impl Hub {
         }
     }
     fn fail(&self, cid: &str, request: &Envelope, code: ErrorCode) {
+        eprintln!("rpc rejected connection={cid} code={}", code.as_str_name());
         self.send(cid, error(request, code), "", None, "");
     }
     fn principal(&self, h: &str, cid: &str) -> Result<Principal> {
@@ -310,6 +311,7 @@ impl Hub {
                 } else {
                     Identity::Mobile(challenge.identity.clone())
                 });
+                eprintln!("ws authenticated connection={cid}");
                 // Auth response precedes the initial ACL snapshot.
                 self.send(
                     cid,

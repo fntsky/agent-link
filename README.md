@@ -1,17 +1,35 @@
-# dsh-remote
+# Agent Link
 
-Rust + WebSocket 的 HRP v1 Relay 服务端，可独立启动或作为 Formicary Chamber 运行。
+面向移动端和 Agent Harness 的远程连接项目：共享 HRP 协议、Rust WebSocket Relay、原生 Android 客户端，以及可扩展的 Harness 适配器。
+
+GitHub：[fntsky/agent-link](https://github.com/fntsky/agent-link)。三个分支分别为 `delay`（Relay，默认）、`android`（Kotlin 客户端）、`dsh`（DeepSeek Harness 插件）。
+本分支提供 Relay，可独立启动或作为 Formicary Chamber 运行。
 HRP v1.1 是设计文档修订号，wire major 仍为 1。
 
 Relay 负责 Ed25519 挑战认证、owner/device_link/invite 配对、成员 ACL 同步、
 RPC 路由和连接级订阅隔离。SQLite 只保存身份、公钥、成员、短期配对与配对幂等记录。
 会话历史、Session ACL、Inbox、工具审批执行及业务幂等由 Harness 负责。
 
+## 直接运行已编译版本
+
+仓库像 rs_blog 一样提交 `dist/dsh-remote`，当前为 Linux x86_64 可执行文件。
+首次启动需要设置 Harness 注册令牌，数据默认保存到 `data/`：
+
+```sh
+export HRP_REGISTRATION_TOKEN="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+HRP_LISTEN=0.0.0.0:53214 ./start.sh
+```
+
+默认仍监听 `127.0.0.1:53214`；独立局域网访问时如上覆盖为 `0.0.0.0`。
+`dist/SHA256SUMS` 可用于校验二进制：`cd dist && sha256sum -c SHA256SUMS`。
+无需在部署端安装 Rust/protoc。其他系统或架构请重新编译。
+
 ## 本地开发
 
 需要 Rust stable（edition 2024）、C 编译器及支持 proto3 optional 的 `protoc`。
 Python 测试需要 Python 3.11 或更高版本。
 Rust 类型在构建时通过 prost 从 schema 生成，SQLite 随二进制构建。
+`make build` 编译 release 并更新 `dist/`；`cargo run --locked` 仍用于日常开发。
 
 ```sh
 export HRP_REGISTRATION_TOKEN="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
@@ -38,17 +56,19 @@ Relay 本身不依赖 Formicary 登录会话，不把 `X-Formicary-*` 当作 HRP
 
 ## Chamber
 
-[chamber.toml](chamber.toml) 定义 prepare、代理、健康检查；[启动脚本](scripts/start.sh)
+[chamber.toml](chamber.toml) 定义代理、健康检查；[启动脚本](start.sh)
 以前台进程运行 release 二进制。将 `HRP_REGISTRATION_TOKEN` 设置在 Formicary 的启动环境。
-构建环境需要上述 Rust/C/protoc 工具。
+部署使用已提交的二进制，无需构建工具。
 
-- prepare：`cargo build --release --locked`。
+- 无 prepare 构建步骤，直接运行 `dist/dsh-remote`。
 - upstream：`http://127.0.0.1:53214`，健康路径 `/healthz`。
 - 外部路由：`/dsh-remote`，例如 `wss://<host>/dsh-remote/ws/mobile`。
 - 数据库：`${CHAMBER_DATA_DIR}/relay.sqlite3`；未设时退回 `./data/relay.sqlite3`。
   `HRP_DATABASE` 可以显式覆盖，升级版本目录不会承载持久数据。
 
-无需改变正常开发工作流。Chamber 只负责构建、启动及反向代理。
+无需改变正常开发工作流。Chamber 负责启动及反向代理。
+仓库更名为 Agent Link；已有 Chamber 名称、路由 `/dsh-remote` 和二进制名保留兼容。
+从 Formicary 导入公开仓库时选择 `fntsky/agent-link` 的 `delay` 分支。
 
 ## 测试
 
