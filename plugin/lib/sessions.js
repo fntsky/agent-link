@@ -440,9 +440,11 @@ export class SessionBridge {
         const value = await this.#controller().create({});
         const sessionId = String(value.sessionId);
         const title = String(payload.title || '').trim();
+        let appliedTitle = '';
         if (title !== '') {
           try {
             await this.#controller().rename({ sessionId, title });
+            appliedTitle = title;
           } catch (error) {
             this.logger.warn?.(`[dsh-remote] native session title was not applied: ${error.message}`);
           }
@@ -456,7 +458,7 @@ export class SessionBridge {
         }
         const cursor = events[events.length - 1]?.seq || 0;
         return {
-          baseline: this.#baseline(sessionId, events, cursor, 50, title),
+          baseline: this.#baseline(sessionId, events, cursor, 50, appliedTitle),
           agent: { session_id: sessionId, agent_id: sessionId, state: agentState(this.#live(sessionId)) },
         };
       },
