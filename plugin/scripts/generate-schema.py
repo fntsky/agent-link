@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Regenerate lib/schema.json from proto/hrp.proto.
+"""Regenerate lib/schema.json from plugin/proto/hrp.proto.
 
 Requires protoc on PATH and the Python protobuf package:
-    /mnt/data/code/dsh-remote/.venv/bin/python plugin/scripts/generate-schema.py
+    python3 -m venv .venv && .venv/bin/pip install protobuf
+    .venv/bin/python plugin/scripts/generate-schema.py
 The committed schema.json is enough to run the plugin; this is only needed
 after changing the wire contract.
 """
@@ -13,9 +14,9 @@ from pathlib import Path
 
 from google.protobuf import descriptor_pb2 as descriptor
 
-ROOT = Path(__file__).resolve().parents[2]
-PROTO = ROOT / "proto" / "hrp" / "v1" / "hrp.proto"
-OUT = ROOT / "plugin" / "lib" / "schema.json"
+PLUGIN = Path(__file__).resolve().parents[1]
+PROTO = PLUGIN / "proto" / "hrp.proto"
+OUT = PLUGIN / "lib" / "schema.json"
 
 TYPE_NAMES = {
     1: "double", 2: "float", 3: "int64", 4: "uint64", 5: "int32",
@@ -62,7 +63,7 @@ def add_message(message, prefix, messages, enums):
 def main():
     with tempfile.NamedTemporaryFile(suffix=".bin") as tmp:
         subprocess.run(
-            ["protoc", "-I", str(ROOT / "proto"), f"--descriptor_set_out={tmp.name}",
+            ["protoc", "-I", str(PLUGIN / "proto"), f"--descriptor_set_out={tmp.name}",
              "--include_imports", str(PROTO)],
             check=True,
         )

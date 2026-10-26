@@ -4,7 +4,7 @@
 连接到一个 HRP Relay，并在「设置 → 插件 → 远程配对」里提供远程地址、注册令牌、
 连接状态和手机配对功能。
 
-插件使用 `proto/hrp.proto`（来自仓库 `proto/hrp/v1/hrp.proto`）的 wire 契约，
+插件使用 `plugin/proto/hrp.proto`（同步自 `relay` 分支的 wire 契约）的协议定义，
 通过 `plugin/lib/schema.json` 驱动一个无依赖的 protobuf 编解码器；Harness ↔ Relay
 使用 `hrp.relay.pb.v1` 子协议和 `HarnessForward` / `RelayForward` 包装。
 
@@ -58,7 +58,7 @@ Session 标题直接取 DSH 的 `title` 投影；没有标题时依次使用工�
 插件是普通 DSH bundle（`dsh.bundle.patch` + `dsh.client`），Host 侧只使用 Node
 内置模块，不安装任何 npm 依赖。
 
-从仓库根目录安装：
+从仓库根目录安装（`dsh` 分支只保留插件）：
 
 ```sh
 # 在 DSH 会话里通过 plugin_manager 安装本地目录
@@ -114,22 +114,24 @@ Session 标题直接取 DSH 的 `title` 投影；没有标题时依次使用工�
 node --test plugin/test/*.test.mjs
 ```
 
-手工联调：
+手工联调需要一个 Relay。请在 `relay` 分支的检出目录里启动：
 
 ```sh
-# 1. 启动 Relay（临时数据库）
 HRP_LISTEN=127.0.0.1:53215 \
 HRP_DATABASE=/tmp/hrp-test/relay.sqlite3 \
 HRP_REGISTRATION_TOKEN=<32+ chars> \
 cargo run --locked
+```
 
-# 2. 启动 Adapter 测试进程，读取输出中的 PAIR 码
+然后在 `dsh` 分支启动 Adapter 测试进程，读取输出中的 PAIR 码：
+
+```sh
 HRP_TEST_URL=ws://127.0.0.1:53215 \
 HRP_TEST_TOKEN=<same token> \
 DSH_REMOTE_STATE=/tmp/hrp-test/state.json \
 node plugin/test/adapter.integration.mjs
 
-# 3. 用 tests/mobile.py 的 Mobile 兑换配对码并调用 session_list
+# 3. 在 relay 分支用 tests/mobile.py 的 Mobile 兑换配对码并调用 session_list
 ```
 
 `plugin/test/adapter.integration.mjs` 使用临时状态文件，不会读写真实
@@ -143,5 +145,5 @@ node plugin/test/adapter.integration.mjs
 - `lib/ws.js` — 带 Authorization 的 RFC 6455 客户端
 - `lib/adapter.js` — HRP 握手、ACL、配对、请求分发
 - `lib/sessions.js` — DSH Session/Agent/Model 到 HRP 的桥接
-- `proto/hrp.proto` — wire 契约副本
-- `scripts/generate-schema.py` — 从 proto 重新生成 schema
+- `proto/hrp.proto` — wire 契约副本（从 `relay` 分支同步）
+- `scripts/generate-schema.py` — 从 `plugin/proto/hrp.proto` 重新生成 schema

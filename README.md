@@ -1,111 +1,110 @@
-# Agent Link
+# DSH Remote · DeepSeek Harness 插件
 
-面向移动端和 Agent Harness 的远程连接项目：共享 HRP 协议、Rust WebSocket Relay、原生 Android 客户端，以及可扩展的 Harness 适配器。
+本分支只包含 DeepSeek Harness 侧的 HRP v1 插件 `@local/dsh-remote`，不包含 Relay、
+Android 客户端或 Rust 工程。Relay 在 [`relay`](https://github.com/fntsky/agent-link/tree/relay)
+分支，Android 客户端在 [`android`](https://github.com/fntsky/agent-link/tree/android) 分支。
 
-GitHub：[fntsky/agent-link](https://github.com/fntsky/agent-link)。三个分支分别为 `delay`（Relay，默认）、`android`（Kotlin 客户端）、`dsh`（DeepSeek Harness 插件）。
-本分支提供 Relay，可独立启动或作为 Formicary Chamber 运行。
-HRP v1.1 是设计文档修订号，wire major 仍为 1。
+插件把本机 Harness 连接到 HRP Relay，让已配对手机通过 Relay 读取和操作本机 DSH
+工作区中的原生 Session，并在「设置 → 插件 → 远程配对」中提供连接、配对和设备管理。
 
-Relay 负责 Ed25519 挑战认证、owner/device_link/invite 配对、成员 ACL 同步、
-RPC 路由和连接级订阅隔离。SQLite 只保存身份、公钥、成员、短期配对与配对幂等记录。
-会话历史、Session 目录与操作权限、Inbox、工具审批执行及业务幂等由 Harness 负责；
-Session 目录与本地工作区一致，不设置 Adapter 专属会话。
+## 功能
 
-## 直接运行已编译版本
+- **连接与身份**：Ed25519 密钥、`harness.register`、`auth.challenge/prove`、
+  自动重连；首次连接只保存 Relay 地址和注册令牌。
+- **成员 AC**L：处理 Relay 的 `membership.snapshot`，校验 principal、成员关系和
+  `acl_version`；每个业务请求都不信任手机自报的身份。
+- **配对**：生成一次性 owner 配对码；显示有效期、复制和失效状态。
+- **成员管理**：列出已配对设备，可移除任意成员（包括 owner）。移除会提升 ACL
+  版本、关闭该设备连接；最后一个 owner 被移除后可以重新生成 owner 码。没有其他
+  成员关系的设备身份会一并删除，同一台手机可以用新码重新加入。
+- **原生 Session 目录**：`session.list` 直接投影 DSH 工作区目录，不创建插件专属
+  Session；`SessionSummary.workspace` 提供工作区路径，手机端据此聚合和折叠。
+- **读取与实时**：`session.open/snapshot/page/follow/unfollow`，映射自然消息、
+  工具调用/结果、生命周期、模型选择、审批事件；未知事件走 Extension 保留 seq。
+- **发送与模型**：`agent.send/cancel/status/inbox_get/create_or_resume`、
+  `model.current/list/select`。
+- **设置页**：`settings.plugins.tab`，包含 Relay 地址、显示名称、注册令牌、连接
+  状态、ACL 版本、在线时长、已配对设备与移除操作。
 
-仓库像 rs_blog 一样提交 `dist/dsh-remote`，当前为 Linux x86_64 可执行文件。
-首次启动自动生成 Harness 注册令牌，数据默认保存到 `data/`：
+## 安装
 
-```sh
-HRP_LISTEN=0.0.0.0:53323 ./start.sh
-# 查看 Harness 要填写的注册令牌：
-cat data/relay-registration-token
+插件是普通 DSH bundle（`dsh.bundle.patch` + `dsh.client`），Host 侧只使用 Node
+内置模块，不需要 npm 依赖。
+
+在 DSH 会话里通过 `plugin_manager` 安装本地目录：
+
+```text
+target: /path/to/agent-link/plugin
 ```
 
-启动脚本默认监听 `127.0.0.1:53323`；独立局域网访问时如上覆盖为 `0.0.0.0`。
-`dist/SHA256SUMS` 可用于校验二进制：`cd dist && sha256sum -c SHA256SUMS`。
-无需在部署端安装 Rust/protoc。其他系统或架构请重新编译。
+安装后打开 **设置 → 插件 → 远程配对 / Remote Relay**。
 
-## 本地开发
+插件管理器的本地目录安装会链接 `plugin/`；修改代码后需要重新安装，Host 侧深层
+模块或 schema 变更时还需要重启 DSH 桌面应用，以确保 Node 模块缓存被刷新。
 
-需要 Rust stable（edition 2024）、C 编译器及支持 proto3 optional 的 `protoc`。
-Python 测试需要 Python 3.11 或更高版本。
-Rust 类型在构建时通过 prost 从 schema 生成，SQLite 随二进制构建。
-`make build` 编译 release 并更新 `dist/`；`cargo run --locked` 仍用于日常开发。
+## 配置
 
-```sh
-export HRP_REGISTRATION_TOKEN="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
-cargo run --locked
-```
+- **远程地址**：`ws://127.0.0.1:53215` 或 `wss://host/dsh-remote`；插件会自动补
+  `/ws/harness`，也可以填写完整端点。
+- **显示名称**：Harness 在 Relay 上的名称。
+- **注册令牌**：首次注册需要 Relay 的 `HRP_REGISTRATION_TOKEN`（至少 32 字符）。
+  已登记 Harness 重连时使用私钥证明，不再需要令牌；留空表示不修改。
 
-默认监听 `127.0.0.1:53214`，默认数据库为 `./data/relay.sqlite3`。
-`HRP_LISTEN` 和 `HRP_DATABASE` 可覆盖。注册令牌至少 32 字节，只给受信 Harness 使用；
-不要把令牌放进 URL、Git 或手机端。服务端不输出令牌、配对码或业务正文。
+已配对设备列表中的“移除”是用户操作，不暴露给 Agent 工具。
 
-| 地址 | 用途 | WebSocket 子协议 |
-| --- | --- | --- |
-| `GET /healthz` | 健康检查，返回 `ok` | — |
-| `/ws/mobile` | 手机连接，每条 Binary Message 为 Envelope | `hrp.pb.v1` |
-| `/ws/harness` | Harness 连接，上行为 HarnessForward，下行为 RelayForward | `hrp.relay.pb.v1` |
+## 状态与安全
 
-Harness 首次 register 时必须在握手中带 `Authorization: Bearer <HRP_REGISTRATION_TOKEN>`。
-注册只是登记待证明公钥；随后必须 auth.challenge / auth.prove 才能上线。
-已登记 Harness 重连仅需私钥证明，无须再提供注册令牌。连接认证前也使用相同包装格式。
-手机首次通过 pair.redeem 取得身份，以后使用设备私钥挑战认证。
+默认状态文件：`$DSH_HOME/dsh-remote/state.json`，权限 `0600`。包含：
 
-公开部署由入口反向代理终止 TLS，客户端使用 `wss://` 并验证证书；默认仅本机明文 HTTP/WS。
-Relay 本身不依赖 Formicary 登录会话，不把 `X-Formicary-*` 当作 HRP principal。
+- Ed25519 私钥（PKCS#8，base64）和公钥（原始 32 字节）
+- `harness_id`、Relay 地址、注册令牌
+- 幂等回执（按用户与 `client_operation_id`，24 小时或 500 条后清理）
 
-## Chamber
+注册令牌和私钥不会通过设置 RPC 回传给浏览器。设置 RPC 走 DSH Connection 的浏览器
+认证和 Host/Origin 检查；未认证请求返回 401/403。
 
-[chamber.toml](chamber.toml) 定义代理、健康检查；[启动脚本](start.sh)
-以前台进程运行 release 二进制。默认由 TOML 的启动命令指定令牌文件；首次自动生成，重启复用。
-部署使用已提交的二进制，无需构建工具。
+已认证 Relay 成员可以读取和操作 DSH 工作区中的全部原生 Session。Session 可见性
+与本地工作区一致，不存在插件专属目录；成员 ACL 是唯一边界。审批仍要求当前连接
+正在订阅该 Session，并使用绑定该连接与审批的 decision token。
 
-- 无 prepare 构建步骤，直接运行 `dist/dsh-remote`。
-- 默认令牌文件：`${CHAMBER_DATA_DIR}/relay-registration-token`，权限为 0600。
-  可在服务器读取这个文件，将其值填给 Harness；手机只填写一次性配对码。
-- 在本机 `chamber.toml` 的 `script` 中写 `HRP_REGISTRATION_TOKEN="自定义长令牌" ./start.sh`
-  可以显式指定，优先于文件。实际令牌不能提交到公开仓库。
-  修改配置后重启 Chamber；令牌文件和数据库都位于共享数据目录，升级不会清空。
-- upstream：`http://127.0.0.1:53323`，健康路径 `/healthz`。
-- 外部路由：`/dsh-remote`，例如 `wss://<host>/dsh-remote/ws/mobile`。
-- 数据库：`${CHAMBER_DATA_DIR}/relay.sqlite3`；未设时退回 `./data/relay.sqlite3`。
-  `HRP_DATABASE` 可以显式覆盖，升级版本目录不会承载持久数据。
+## 目录
 
-无需改变正常开发工作流。Chamber 负责启动及反向代理。
-仓库更名为 Agent Link；已有 Chamber 名称、路由 `/dsh-remote` 和二进制名保留兼容。
-从 Formicary 导入公开仓库时选择 `fntsky/agent-link` 的 `delay` 分支。
+- `plugin/index.js` — Host 半：Relay 连接、设置 RPC、生命周期
+- `plugin/client.js` — Client 半：设置页
+- `plugin/lib/adapter.js` — HRP 握手、ACL、配对、成员撤销、请求分发
+- `plugin/lib/sessions.js` — DSH Session/Agent/Model 到 HRP 的桥接
+- `plugin/lib/ws.js` — 带 Authorization 的 RFC 6455 客户端
+- `plugin/lib/proto.js` / `lib/schema.json` — protobuf 运行时与生成 schema
+- `plugin/proto/hrp.proto` — wire 契约副本（从 `relay` 分支同步）
+- `plugin/scripts/generate-schema.py` — 从本地 proto 重新生成 schema
+- `plugin/test/` — 编解码、Host RPC、Session 桥接、成员撤销测试
+
+详细说明见 [plugin/README.md](plugin/README.md)。
 
 ## 测试
 
 ```sh
-make check           # proto 编译、fmt、Clippy、Rust 回归测试
-make python-setup    # 一次性创建 .venv 并安装测试依赖
-make e2e             # 构建 Rust，生成 Python protobuf，启动临时 Relay 和模拟两端
-make chamber-smoke   # release 构建后，按 chamber.toml 的脚本、健康路径和共享数据规则启动测试
+node --test plugin/test/*.test.mjs
 ```
 
-Python [Harness 模拟器](tests/harness.py) 与 [手机模拟器](tests/mobile.py) 使用真实
-WebSocket 和 protobuf 通信；[端到端测试](tests/e2e.py) 覆盖配对、认证重放、ACL 屏障、
-发送、分页、订阅、实时流、审批、模型控制、取消、断线及 Relay 重启。
-测试使用临时数据库和随机测试身份，退出后回收进程与数据。
+手工联调需要一个 Relay，从 `relay` 分支检出目录启动；具体命令和 Python 手机模拟器
+见 [plugin/README.md](plugin/README.md)。
 
-Rust 回归额外检查错误 Harness/响应类型不能抢路由、旧 ACL ack、基线先行、
-背压、follow 超时清理及 SQLite 事务回滚。Chamber smoke 只检查本项目配置和启动脚本，
-不启动完整 Formicary 反向代理。
+## 当前限制
 
-## 契约与当前范围
+- 远程审批 answerer 未接入：`approval.*` 返回空/不可用，`approval_policy_set`
+  返回不支持。
+- Inbox 查询返回空，队列编辑不在本版范围。
+- 只处理文本 `ContentBlock`；图片、文件、工作区传输未实现。
+- 尚未实现远程终端、文件系统和工作区管理。
+- 真实 Android 端到端仍需要手机完成配对后验证。
 
-- [Protobuf schema](proto/hrp/v1/hrp.proto)
-- [传输、授权及一致性规范](docs/protocol.md)
-- [Relay 实现细节与边界](docs/relay.md)
+## 分支
 
-当前是可联调的 Relay 实现。`delay` 分支的 Python Harness 是协议测试替身；
-`dsh` 分支在 [plugin/](plugin/README.md) 提供真实 DeepSeek Harness Adapter 和设置页，
-可连接 Relay、完成 Ed25519 认证、owner 配对，并把本机 DSH 的原生 Session 目录、
-Agent 和模型请求完整桥接到协议。Session 目录与本地工作区一致，不设插件专属会话；
-已认证成员可以读取工作区中的全部 Session，`session.create` 创建的也是普通本机
-Session。成员撤销 API 已实现：设置页可移除设备，包括重置旧 owner；远程审批、
-Inbox 队列编辑、图片/文件传输仍未实现；发布前仍需真实 Android 端联调。
+| 分支 | 内容 |
+| --- | --- |
+| [`relay`](https://github.com/fntsky/agent-link/tree/relay) | HRP 协议、Rust WebSocket Relay、Python 测试替身 |
+| [`android`](https://github.com/fntsky/agent-link/tree/android) | Kotlin/Jetpack Compose Android 客户端 |
+| [`dsh`](https://github.com/fntsky/agent-link/tree/dsh) | 本分支：DeepSeek Harness 插件 |
+
 字段号与枚举值属于 wire 契约；删除字段必须 reserved，不得复用。

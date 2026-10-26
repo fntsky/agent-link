@@ -1,6 +1,3 @@
 .gen/
-/target/
-/data/
-/.venv/
-/tests/generated/
 __pycache__/
+*.pyc
