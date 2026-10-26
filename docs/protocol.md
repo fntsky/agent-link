@@ -75,6 +75,8 @@
   InboxChanged 在订阅内报告 queued/claimed/committed/discarded/rejected 等变化。
 - AgentCancel.keep_inbox 缺省为 false。cancel_requested 仅确认提出协作式取消，
   最终结果由持久 turn/end 确认。断线、unfollow、Relay 重启都不得取消或 dispose Agent。
+- SessionSummary.workspace 是 Harness 的原生工作区目录路径，供客户端按工作区分组；
+  空值表示没有工作区归属，不参与工作区分组。
 - SessionSummary.committed_seq、Baseline.cursor 和 SessionCommitted.cursor 指向
   DSH 同一 Session 的持久进度；0 为尚无事件。Session seq 为原生日志序号，不重编。
   页面事件按 seq 升序返回；before_seq 为排他上界，返回最接近上界的更早页；
