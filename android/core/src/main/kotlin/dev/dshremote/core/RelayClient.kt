@@ -139,14 +139,25 @@ class RelayClient(private val identity: DeviceIdentity) {
     }
     suspend fun redeem(code: String, operationId: String): PairRedeemResponse {
         val message = DeviceIdentity.transcript("HRP-PAIR-v1", code.toByteArray(), identity.deviceId.toByteArray(), identity.publicKey)
-        val result = rpc(dev.dshremote.protocol.Request.newBuilder().setPairRedeem(PairRedeemRequest.newBuilder().setMutation(mutation(operationId)).setPairingCode(code).setDeviceId(identity.deviceId).setPublicKey(ByteString.copyFrom(identity.publicKey)).setPossessionSignature(ByteString.copyFrom(identity.sign(message)))).build(), harness = null).pairRedeem
+        val result = try {
+            rpc(dev.dshremote.protocol.Request.newBuilder().setPairRedeem(PairRedeemRequest.newBuilder().setMutation(mutation(operationId)).setPairingCode(code).setDeviceId(identity.deviceId).setPublicKey(ByteString.copyFrom(identity.publicKey)).setPossessionSignature(ByteString.copyFrom(identity.sign(message)))).build(), harness = null).pairRedeem
+        } catch (e: RelayException) {
+            // The relay uses FORBIDDEN for invalid, expired, or already-used codes.
+            if (e.code == ErrorCode.ERROR_CODE_FORBIDDEN) throw IOException("配对码无效、已过期或已被使用，请重新生成")
+            throw e
+        }
         activeHarness = result.harnessId
         _link.value = Link(true, "配对成功")
         return result
     }
     fun selectHarness(harness: String) { activeHarness = harness }
     suspend fun capabilities(): CapabilitiesGetResponse = rpc(dev.dshremote.protocol.Request.newBuilder().setCapabilitiesGet(CapabilitiesGetRequest.getDefaultInstance()).build()).capabilitiesGet
-    suspend fun sessions(pageToken: String? = null): SessionListResponse = rpc(dev.dshremote.protocol.Request.newBuilder().setSessionList(SessionListRequest.newBuilder().setPageSize(50).apply { pageToken?.let(::setPageToken) }).build()).sessionList
+    suspend fun sessions(pageToken: String? = null): SessionListResponse = try {
+        rpc(dev.dshremote.protocol.Request.newBuilder().setSessionList(SessionListRequest.newBuilder().setPageSize(50).apply { pageToken?.let(::setPageToken) }).build()).sessionList
+    } catch (e: RelayException) {
+        if (e.code == ErrorCode.ERROR_CODE_FORBIDDEN) throw IOException("当前设备已不是该 Harness 的成员，请重新配对")
+        throw e
+    }
     suspend fun createSession(title: String, operationId: String): SessionCreateResponse {
         val request = SessionCreateRequest.newBuilder().setMutation(mutation(operationId))
         // An empty title keeps the native DSH auto-title; a provided title is written
@@ -200,6 +211,13 @@ class RelayClient(private val identity: DeviceIdentity) {
     suspend fun models(session: String): ModelListResponse = rpc(dev.dshremote.protocol.Request.newBuilder().setModelList(ModelListRequest.newBuilder().setSessionId(session)).build()).modelList
     suspend fun currentModel(session: String): ModelSelection = rpc(dev.dshremote.protocol.Request.newBuilder().setModelCurrent(ModelCurrentRequest.newBuilder().setSessionId(session)).build()).modelCurrent.selection
     suspend fun selectModel(session: String, model: ModelSelection, operationId: String): ModelSelection = rpc(dev.dshremote.protocol.Request.newBuilder().setModelSelect(ModelSelectRequest.newBuilder().setSessionId(session).setSelection(model).setMutation(mutation(operationId))).build()).modelSelect.selection
-    suspend fun createPair(mode: PairMode, operationId: String): PairCreateResponse = rpc(dev.dshremote.protocol.Request.newBuilder().setPairCreate(PairCreateRequest.newBuilder().setHarnessId(activeHarness).setMode(mode).setMutation(mutation(operationId))).build()).pairCreate
+    suspend fun createPair(mode: PairMode, operationId: String): PairCreateResponse = try {
+        rpc(dev.dshremote.protocol.Request.newBuilder().setPairCreate(PairCreateRequest.newBuilder().setHarnessId(activeHarness).setMode(mode).setMutation(mutation(operationId))).build()).pairCreate
+    } catch (e: RelayException) {
+        if (e.code == ErrorCode.ERROR_CODE_FORBIDDEN) {
+            throw IOException(if (mode == PairMode.PAIR_MODE_INVITE) "只有 owner 设备可以邀请独立用户" else "当前设备不是该 Harness 的成员，无法生成绑定码")
+        }
+        throw e
+    }
     companion object { fun mutation(id: String): Mutation = Mutation.newBuilder().setClientOperationId(id).build() }
 }
