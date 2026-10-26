@@ -267,7 +267,7 @@ impl Store {
         let result = (|| {
             let pair=db(self.0.query_row("SELECT harness_id,user_id,role FROM pairs WHERE code_hash=?1 AND consumed=0 AND expires>?2",params![hash(r.pairing_code.as_bytes()),now()],|row|Ok((row.get::<_,String>(0)?,row.get::<_,Option<String>>(1)?,row.get::<_,i32>(2)?))).optional())?.ok_or(ErrorCode::Forbidden)?;
             let (h, u, role) = pair;
-            let user = u.unwrap_or_else(id);
+            let pair_user = u.unwrap_or_else(id);
             let existing = db(self
                 .0
                 .query_row(
@@ -276,9 +276,29 @@ impl Store {
                     |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
                 )
                 .optional())?;
-            if let Some((old, key)) = existing {
-                require(old == user && key == r.public_key, ErrorCode::Forbidden)?;
-            }
+            let user = if let Some((old_user, key)) = existing {
+                require(key == r.public_key, ErrorCode::Forbidden)?;
+                if old_user == pair_user {
+                    old_user
+                } else {
+                    // A device with no remaining memberships is an orphan left by
+                    // revocation. Let it adopt the new pair's user (this also
+                    // repairs devices revoked before identity cleanup existed).
+                    let memberships: i64 = db(self.0.query_row(
+                        "SELECT COUNT(*) FROM members WHERE device_id=?1",
+                        [&r.device_id],
+                        |row| row.get(0),
+                    ))?;
+                    require(memberships == 0, ErrorCode::Forbidden)?;
+                    db(self.0.execute(
+                        "UPDATE devices SET user_id=?1 WHERE id=?2",
+                        params![pair_user, r.device_id],
+                    ))?;
+                    pair_user
+                }
+            } else {
+                pair_user
+            };
             db(self.0.execute(
                 "INSERT OR IGNORE INTO devices VALUES (?1,?2,?3)",
                 params![r.device_id, user, r.public_key],
@@ -562,6 +582,15 @@ mod tests {
         assert!(store.member("h", "d").is_err());
         assert!(store.device("d").is_err());
         assert_eq!(store.version("h").unwrap(), 2);
+        // Simulate an orphan left by a relay that revoked members before the
+        // device-row cleanup existed; the next pair redeem must adopt it.
+        store
+            .0
+            .execute(
+                "INSERT INTO devices VALUES ('d','orphan-user',?1)",
+                [&public_key],
+            )
+            .unwrap();
         let Res::PairCreate(second) = store
             .create_pair(&create("create-2"), "harness:h", None, false, true)
             .unwrap()
@@ -589,6 +618,14 @@ mod tests {
         assert_eq!(redeemed.harness_id, "h");
         assert_eq!(redeemed.device_id, "d");
         assert_eq!(redeemed.acl_version, 3);
+        assert_ne!(redeemed.user_id, "orphan-user");
+        let stored_user: String = store
+            .0
+            .query_row("SELECT user_id FROM devices WHERE id='d'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(stored_user, redeemed.user_id);
         assert!(store.member("h", "d").is_ok());
     }
     #[test]
