@@ -52,6 +52,11 @@
 - 成员 ACL 仍是唯一边界：未认证连接、已撤销成员和 ACL 未同步的连接不能读 Session。
   审批仍要求当前连接正在订阅该 Session，并使用绑定该连接与审批的 decision token；
   这与 Session 可见性无关，不能借“完全开放”绕过。
+- 已认证 Harness 可用 `member_revoke`（携带 Mutation、harness_id、device_id）移除本
+  Harness 的成员，包括 owner。Relay 在同一事务中删除成员、提升 ACL 版本，并返回
+  `MemberRevokeResponse{acl_version, removed}`；随后关闭该设备的 Relay 连接、通知
+  Harness 清理 connection 作用域，并推送新的 MembershipSnapshot。相同操作 ID 重试
+  返回原回执，不重复提升版本。移除最后一个 owner 后，允许重新创建 owner 配对码。
 
 ## 幂等、Session 与 Inbox
 

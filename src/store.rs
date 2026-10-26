@@ -309,6 +309,53 @@ impl Store {
         })();
         self.finish(result)
     }
+    /// Remove one member from a Harness. The operation is persisted as an
+    /// idempotent harness-scoped mutation; a successful removal bumps the ACL
+    /// version exactly once. The caller owns connection teardown and snapshot
+    /// delivery because those are Hub (not storage) responsibilities.
+    pub fn revoke_member(&mut self, r: &MemberRevokeRequest, harness: &str) -> Result<Res> {
+        let op = r
+            .mutation
+            .as_ref()
+            .map(|m| m.client_operation_id.as_str())
+            .unwrap_or("");
+        require(
+            !op.is_empty() && op.len() <= 128 && r.harness_id == harness,
+            ErrorCode::InvalidArgument,
+        )?;
+        require(
+            !r.device_id.is_empty() && r.device_id.len() <= 128,
+            ErrorCode::InvalidArgument,
+        )?;
+        let scope = format!("harness:{harness}");
+        let digest = hash(&r.encode_to_vec());
+        if let Some(c) = self.cached(&scope, op, &digest)? {
+            return c.operation.ok_or(ErrorCode::Internal);
+        }
+        db(self.0.execute_batch("BEGIN IMMEDIATE"))?;
+        let result = (|| {
+            let removed = db(self.0.execute(
+                "DELETE FROM members WHERE harness_id=?1 AND device_id=?2",
+                params![harness, r.device_id],
+            ))?;
+            require(removed == 1, ErrorCode::MemberNotFound)?;
+            db(self.0.execute(
+                "UPDATE harnesses SET acl_version=acl_version+1 WHERE id=?1",
+                [harness],
+            ))?;
+            let version = self.version(harness)?;
+            self.save(
+                &scope,
+                op,
+                &digest,
+                Res::MemberRevoke(MemberRevokeResponse {
+                    acl_version: version,
+                    removed: true,
+                }),
+            )
+        })();
+        self.finish(result)
+    }
     fn finish<T>(&self, result: Result<T>) -> Result<T> {
         match result {
             Ok(r) => {
@@ -390,6 +437,61 @@ mod tests {
             .unwrap();
         assert!(store.redeem_pair(&redeem).is_ok());
         assert_eq!(store.version("h").unwrap(), 1);
+    }
+    #[test]
+    fn member_revoke_is_idempotent_and_bumps_acl_once() {
+        let mut store = Store::open(":memory:").unwrap();
+        let (redeem, _) = owner_pair(&mut store);
+        store.redeem_pair(&redeem).unwrap();
+        assert_eq!(store.version("h").unwrap(), 1);
+        let request = MemberRevokeRequest {
+            mutation: Some(Mutation {
+                client_operation_id: "revoke".into(),
+            }),
+            harness_id: "h".into(),
+            device_id: "d".into(),
+        };
+        let Res::MemberRevoke(result) = store.revoke_member(&request, "h").unwrap() else {
+            panic!()
+        };
+        assert!(result.removed);
+        assert_eq!(result.acl_version, 2);
+        assert_eq!(store.version("h").unwrap(), 2);
+        assert!(store.member("h", "d").is_err());
+        assert_eq!(
+            store.revoke_member(&request, "h").unwrap(),
+            Res::MemberRevoke(result)
+        );
+        let mut conflict = request.clone();
+        conflict.device_id = "other".into();
+        assert_eq!(
+            store.revoke_member(&conflict, "h"),
+            Err(ErrorCode::IdempotencyConflict)
+        );
+        let mut missing = request.clone();
+        missing.mutation.as_mut().unwrap().client_operation_id = "revoke-again".into();
+        assert_eq!(
+            store.revoke_member(&missing, "h"),
+            Err(ErrorCode::MemberNotFound)
+        );
+        // Removing the last owner reopens owner pairing.
+        assert!(
+            store
+                .create_pair(
+                    &PairCreateRequest {
+                        mutation: Some(Mutation {
+                            client_operation_id: "new-owner".into(),
+                        }),
+                        harness_id: "h".into(),
+                        mode: 1,
+                    },
+                    "harness:h",
+                    None,
+                    false,
+                    true,
+                )
+                .is_ok()
+        );
     }
     #[test]
     fn pairing_receipt_survives_reopen_without_repeating_membership_effects() {
