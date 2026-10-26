@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Remote Relay",
+    "description": "Connects this Harness to an HRP v1 relay so paired phones can reach local sessions."
+  }
+}

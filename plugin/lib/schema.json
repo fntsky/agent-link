@@ -1,0 +1,2910 @@
+{
+ "messages": {
+  "google.protobuf.Struct": {
+   "fields": [
+    {
+     "name": "fields",
+     "number": 1,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "google.protobuf.Struct.FieldsEntry"
+    }
+   ]
+  },
+  "google.protobuf.Struct.FieldsEntry": {
+   "fields": [
+    {
+     "name": "key",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "value",
+     "number": 2,
+     "type": "message",
+     "label": "optional",
+     "typeName": "google.protobuf.Value"
+    }
+   ]
+  },
+  "google.protobuf.Value": {
+   "fields": [
+    {
+     "name": "null_value",
+     "number": 1,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "google.protobuf.NullValue"
+    },
+    {
+     "name": "number_value",
+     "number": 2,
+     "type": "double",
+     "label": "optional"
+    },
+    {
+     "name": "string_value",
+     "number": 3,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "bool_value",
+     "number": 4,
+     "type": "bool",
+     "label": "optional"
+    },
+    {
+     "name": "struct_value",
+     "number": 5,
+     "type": "message",
+     "label": "optional",
+     "typeName": "google.protobuf.Struct"
+    },
+    {
+     "name": "list_value",
+     "number": 6,
+     "type": "message",
+     "label": "optional",
+     "typeName": "google.protobuf.ListValue"
+    }
+   ],
+   "oneofs": {
+    "kind": [
+     "null_value",
+     "number_value",
+     "string_value",
+     "bool_value",
+     "struct_value",
+     "list_value"
+    ]
+   }
+  },
+  "google.protobuf.ListValue": {
+   "fields": [
+    {
+     "name": "values",
+     "number": 1,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "google.protobuf.Value"
+    }
+   ]
+  },
+  "google.protobuf.Timestamp": {
+   "fields": [
+    {
+     "name": "seconds",
+     "number": 1,
+     "type": "int64",
+     "label": "optional"
+    },
+    {
+     "name": "nanos",
+     "number": 2,
+     "type": "int32",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.Principal": {
+   "fields": [
+    {
+     "name": "user_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "device_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "roles",
+     "number": 3,
+     "type": "enum",
+     "label": "repeated",
+     "typeName": "hrp.v1.MemberRole"
+    },
+    {
+     "name": "acl_version",
+     "number": 4,
+     "type": "uint64",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.Mutation": {
+   "fields": [
+    {
+     "name": "client_operation_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.Empty": {
+   "fields": []
+  },
+  "hrp.v1.Extension": {
+   "fields": [
+    {
+     "name": "namespace",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "event_type",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "schema_version",
+     "number": 3,
+     "type": "uint32",
+     "label": "optional"
+    },
+    {
+     "name": "media_type",
+     "number": 4,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "payload",
+     "number": 5,
+     "type": "bytes",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.ContentBlock": {
+   "fields": [
+    {
+     "name": "text",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "reasoning",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "tool_call",
+     "number": 3,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ToolCall"
+    },
+    {
+     "name": "tool_result",
+     "number": 4,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ToolResult"
+    },
+    {
+     "name": "extension",
+     "number": 5,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Extension"
+    }
+   ],
+   "oneofs": {
+    "value": [
+     "text",
+     "reasoning",
+     "tool_call",
+     "tool_result",
+     "extension"
+    ]
+   }
+  },
+  "hrp.v1.ToolCall": {
+   "fields": [
+    {
+     "name": "call_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "tool_name",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "arguments",
+     "number": 3,
+     "type": "message",
+     "label": "optional",
+     "typeName": "google.protobuf.Struct"
+    }
+   ]
+  },
+  "hrp.v1.ToolResult": {
+   "fields": [
+    {
+     "name": "call_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "content",
+     "number": 2,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.ContentBlock"
+    },
+    {
+     "name": "is_error",
+     "number": 3,
+     "type": "bool",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.ModelSelection": {
+   "fields": [
+    {
+     "name": "provider",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "model",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "reasoning_effort",
+     "number": 3,
+     "type": "string",
+     "label": "optional",
+     "optional": true
+    }
+   ],
+   "oneofs": {
+    "_reasoning_effort": [
+     "reasoning_effort"
+    ]
+   }
+  },
+  "hrp.v1.AgentRef": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "agent_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional",
+     "optional": true
+    },
+    {
+     "name": "state",
+     "number": 3,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentState"
+    }
+   ],
+   "oneofs": {
+    "_agent_id": [
+     "agent_id"
+    ]
+   }
+  },
+  "hrp.v1.ForkPoint": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "session_seq",
+     "number": 2,
+     "type": "uint64",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.SessionSummary": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "title",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "parent_session_id",
+     "number": 3,
+     "type": "string",
+     "label": "optional",
+     "optional": true
+    },
+    {
+     "name": "agent_id",
+     "number": 4,
+     "type": "string",
+     "label": "optional",
+     "optional": true
+    },
+    {
+     "name": "origin",
+     "number": 5,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "fork_point",
+     "number": 6,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ForkPoint"
+    },
+    {
+     "name": "committed_seq",
+     "number": 7,
+     "type": "uint64",
+     "label": "optional"
+    },
+    {
+     "name": "agent_state",
+     "number": 8,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentState"
+    },
+    {
+     "name": "updated_at",
+     "number": 9,
+     "type": "message",
+     "label": "optional",
+     "typeName": "google.protobuf.Timestamp"
+    }
+   ],
+   "oneofs": {
+    "_parent_session_id": [
+     "parent_session_id"
+    ],
+    "_agent_id": [
+     "agent_id"
+    ]
+   }
+  },
+  "hrp.v1.Projection": {
+   "fields": [
+    {
+     "name": "schema_version",
+     "number": 1,
+     "type": "uint32",
+     "label": "optional"
+    },
+    {
+     "name": "data",
+     "number": 2,
+     "type": "message",
+     "label": "optional",
+     "typeName": "google.protobuf.Struct"
+    }
+   ]
+  },
+  "hrp.v1.SessionEvent": {
+   "fields": [
+    {
+     "name": "session_seq",
+     "number": 1,
+     "type": "uint64",
+     "label": "optional"
+    },
+    {
+     "name": "committed_at",
+     "number": 2,
+     "type": "message",
+     "label": "optional",
+     "typeName": "google.protobuf.Timestamp"
+    },
+    {
+     "name": "turn_id",
+     "number": 3,
+     "type": "string",
+     "label": "optional",
+     "optional": true
+    },
+    {
+     "name": "step_id",
+     "number": 4,
+     "type": "string",
+     "label": "optional",
+     "optional": true
+    },
+    {
+     "name": "event_type",
+     "number": 5,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "user_message",
+     "number": 10,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.MessageRecord"
+    },
+    {
+     "name": "assistant_message",
+     "number": 11,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AssistantRecord"
+    },
+    {
+     "name": "assistant_attempt",
+     "number": 12,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AssistantRecord"
+    },
+    {
+     "name": "tool_call",
+     "number": 13,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ToolCall"
+    },
+    {
+     "name": "tool_result",
+     "number": 14,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ToolResult"
+    },
+    {
+     "name": "lifecycle",
+     "number": 15,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.LifecycleRecord"
+    },
+    {
+     "name": "approval",
+     "number": 16,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalAudit"
+    },
+    {
+     "name": "model_selection",
+     "number": 17,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ModelSelection"
+    },
+    {
+     "name": "extension",
+     "number": 18,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Extension"
+    }
+   ],
+   "oneofs": {
+    "_turn_id": [
+     "turn_id"
+    ],
+    "_step_id": [
+     "step_id"
+    ],
+    "body": [
+     "user_message",
+     "assistant_message",
+     "assistant_attempt",
+     "tool_call",
+     "tool_result",
+     "lifecycle",
+     "approval",
+     "model_selection",
+     "extension"
+    ]
+   }
+  },
+  "hrp.v1.MessageSource": {
+   "fields": [
+    {
+     "name": "user_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "device_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "channel",
+     "number": 3,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.MessageRecord": {
+   "fields": [
+    {
+     "name": "message_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "content",
+     "number": 2,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.ContentBlock"
+    },
+    {
+     "name": "source",
+     "number": 3,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.MessageSource"
+    }
+   ]
+  },
+  "hrp.v1.AssistantRecord": {
+   "fields": [
+    {
+     "name": "attempt_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "revision",
+     "number": 2,
+     "type": "uint64",
+     "label": "optional"
+    },
+    {
+     "name": "content",
+     "number": 3,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.ContentBlock"
+    },
+    {
+     "name": "outcome",
+     "number": 4,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.LifecycleRecord": {
+   "fields": [
+    {
+     "name": "outcome",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "reason",
+     "number": 2,
+     "type": "string",
+     "label": "optional",
+     "optional": true
+    }
+   ],
+   "oneofs": {
+    "_reason": [
+     "reason"
+    ]
+   }
+  },
+  "hrp.v1.ApprovalAudit": {
+   "fields": [
+    {
+     "name": "approval_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "call_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional",
+     "optional": true
+    },
+    {
+     "name": "outcome",
+     "number": 3,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalOutcome"
+    }
+   ],
+   "oneofs": {
+    "_call_id": [
+     "call_id"
+    ]
+   }
+  },
+  "hrp.v1.Baseline": {
+   "fields": [
+    {
+     "name": "session",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionSummary"
+    },
+    {
+     "name": "cursor",
+     "number": 2,
+     "type": "uint64",
+     "label": "optional"
+    },
+    {
+     "name": "projection",
+     "number": 3,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Projection"
+    },
+    {
+     "name": "tail",
+     "number": 4,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.SessionEvent"
+    },
+    {
+     "name": "active_attempts",
+     "number": 5,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.LiveAttempt"
+    }
+   ]
+  },
+  "hrp.v1.LiveAttempt": {
+   "fields": [
+    {
+     "name": "attempt_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "revision",
+     "number": 2,
+     "type": "uint64",
+     "label": "optional"
+    },
+    {
+     "name": "turn_id",
+     "number": 3,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "step_id",
+     "number": 4,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "next_chunk_index",
+     "number": 5,
+     "type": "uint64",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.AuthChallengeRequest": {
+   "fields": [
+    {
+     "name": "identity_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "peer_kind",
+     "number": 2,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.PeerKind"
+    }
+   ]
+  },
+  "hrp.v1.AuthChallengeResponse": {
+   "fields": [
+    {
+     "name": "challenge_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "nonce",
+     "number": 2,
+     "type": "bytes",
+     "label": "optional"
+    },
+    {
+     "name": "expires_at",
+     "number": 3,
+     "type": "message",
+     "label": "optional",
+     "typeName": "google.protobuf.Timestamp"
+    },
+    {
+     "name": "relay_id",
+     "number": 4,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.AuthProveRequest": {
+   "fields": [
+    {
+     "name": "challenge_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "signature",
+     "number": 2,
+     "type": "bytes",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.AuthProveResponse": {
+   "fields": [
+    {
+     "name": "identity_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "expires_at",
+     "number": 2,
+     "type": "message",
+     "label": "optional",
+     "typeName": "google.protobuf.Timestamp"
+    }
+   ]
+  },
+  "hrp.v1.HarnessRegisterRequest": {
+   "fields": [
+    {
+     "name": "harness_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "public_key",
+     "number": 2,
+     "type": "bytes",
+     "label": "optional"
+    },
+    {
+     "name": "display_name",
+     "number": 3,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.HarnessRegisterResponse": {
+   "fields": [
+    {
+     "name": "harness_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.PairCreateRequest": {
+   "fields": [
+    {
+     "name": "mutation",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Mutation"
+    },
+    {
+     "name": "harness_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "mode",
+     "number": 3,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.PairMode"
+    }
+   ]
+  },
+  "hrp.v1.PairCreateResponse": {
+   "fields": [
+    {
+     "name": "pairing_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "pairing_code",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "expires_at",
+     "number": 3,
+     "type": "message",
+     "label": "optional",
+     "typeName": "google.protobuf.Timestamp"
+    }
+   ]
+  },
+  "hrp.v1.PairRedeemRequest": {
+   "fields": [
+    {
+     "name": "mutation",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Mutation"
+    },
+    {
+     "name": "pairing_code",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "device_id",
+     "number": 3,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "public_key",
+     "number": 4,
+     "type": "bytes",
+     "label": "optional"
+    },
+    {
+     "name": "possession_signature",
+     "number": 5,
+     "type": "bytes",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.PairRedeemResponse": {
+   "fields": [
+    {
+     "name": "user_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "device_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "harness_id",
+     "number": 3,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "acl_version",
+     "number": 4,
+     "type": "uint64",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.Membership": {
+   "fields": [
+    {
+     "name": "user_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "device_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "public_key",
+     "number": 3,
+     "type": "bytes",
+     "label": "optional"
+    },
+    {
+     "name": "roles",
+     "number": 4,
+     "type": "enum",
+     "label": "repeated",
+     "typeName": "hrp.v1.MemberRole"
+    }
+   ]
+  },
+  "hrp.v1.MembershipSnapshotRequest": {
+   "fields": [
+    {
+     "name": "acl_version",
+     "number": 1,
+     "type": "uint64",
+     "label": "optional"
+    },
+    {
+     "name": "members",
+     "number": 2,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.Membership"
+    }
+   ]
+  },
+  "hrp.v1.MembershipSnapshotResponse": {
+   "fields": [
+    {
+     "name": "applied_acl_version",
+     "number": 1,
+     "type": "uint64",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.HarnessStatusRequest": {
+   "fields": []
+  },
+  "hrp.v1.HarnessStatusResponse": {
+   "fields": [
+    {
+     "name": "online",
+     "number": 1,
+     "type": "bool",
+     "label": "optional"
+    },
+    {
+     "name": "adapter_version",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "acl_version",
+     "number": 3,
+     "type": "uint64",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.CapabilitiesGetRequest": {
+   "fields": []
+  },
+  "hrp.v1.CapabilitiesGetResponse": {
+   "fields": [
+    {
+     "name": "operations",
+     "number": 1,
+     "type": "string",
+     "label": "repeated"
+    },
+    {
+     "name": "extension_namespaces",
+     "number": 2,
+     "type": "string",
+     "label": "repeated"
+    },
+    {
+     "name": "max_frame_bytes",
+     "number": 3,
+     "type": "uint32",
+     "label": "optional"
+    },
+    {
+     "name": "max_page_size",
+     "number": 4,
+     "type": "uint32",
+     "label": "optional"
+    },
+    {
+     "name": "content_types",
+     "number": 5,
+     "type": "string",
+     "label": "repeated"
+    }
+   ]
+  },
+  "hrp.v1.SessionListRequest": {
+   "fields": [
+    {
+     "name": "page_size",
+     "number": 1,
+     "type": "uint32",
+     "label": "optional"
+    },
+    {
+     "name": "page_token",
+     "number": 2,
+     "type": "string",
+     "label": "optional",
+     "optional": true
+    }
+   ],
+   "oneofs": {
+    "_page_token": [
+     "page_token"
+    ]
+   }
+  },
+  "hrp.v1.SessionListResponse": {
+   "fields": [
+    {
+     "name": "sessions",
+     "number": 1,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.SessionSummary"
+    },
+    {
+     "name": "next_page_token",
+     "number": 2,
+     "type": "string",
+     "label": "optional",
+     "optional": true
+    }
+   ],
+   "oneofs": {
+    "_next_page_token": [
+     "next_page_token"
+    ]
+   }
+  },
+  "hrp.v1.SessionCreateRequest": {
+   "fields": [
+    {
+     "name": "mutation",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Mutation"
+    },
+    {
+     "name": "title",
+     "number": 2,
+     "type": "string",
+     "label": "optional",
+     "optional": true
+    },
+    {
+     "name": "model",
+     "number": 3,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ModelSelection"
+    }
+   ],
+   "oneofs": {
+    "_title": [
+     "title"
+    ]
+   }
+  },
+  "hrp.v1.SessionCreateResponse": {
+   "fields": [
+    {
+     "name": "baseline",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Baseline"
+    },
+    {
+     "name": "agent",
+     "number": 2,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentRef"
+    }
+   ]
+  },
+  "hrp.v1.SessionOpenRequest": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "resume_agent",
+     "number": 2,
+     "type": "bool",
+     "label": "optional"
+    },
+    {
+     "name": "mutation",
+     "number": 3,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Mutation"
+    }
+   ]
+  },
+  "hrp.v1.SessionOpenResponse": {
+   "fields": [
+    {
+     "name": "baseline",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Baseline"
+    },
+    {
+     "name": "agent",
+     "number": 2,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentRef"
+    }
+   ]
+  },
+  "hrp.v1.SessionSnapshotRequest": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "tail_limit",
+     "number": 2,
+     "type": "uint32",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.SessionSnapshotResponse": {
+   "fields": [
+    {
+     "name": "baseline",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Baseline"
+    }
+   ]
+  },
+  "hrp.v1.SessionPageRequest": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "page_size",
+     "number": 2,
+     "type": "uint32",
+     "label": "optional"
+    },
+    {
+     "name": "before_seq",
+     "number": 3,
+     "type": "uint64",
+     "label": "optional"
+    },
+    {
+     "name": "after_seq",
+     "number": 4,
+     "type": "uint64",
+     "label": "optional"
+    }
+   ],
+   "oneofs": {
+    "range": [
+     "before_seq",
+     "after_seq"
+    ]
+   }
+  },
+  "hrp.v1.SessionPageResponse": {
+   "fields": [
+    {
+     "name": "events",
+     "number": 1,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.SessionEvent"
+    },
+    {
+     "name": "has_more",
+     "number": 2,
+     "type": "bool",
+     "label": "optional"
+    },
+    {
+     "name": "committed_seq",
+     "number": 3,
+     "type": "uint64",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.SessionFollowRequest": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "tail_limit",
+     "number": 2,
+     "type": "uint32",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.SessionFollowResponse": {
+   "fields": [
+    {
+     "name": "subscription_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "baseline",
+     "number": 2,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Baseline"
+    }
+   ]
+  },
+  "hrp.v1.SessionUnfollowRequest": {
+   "fields": [
+    {
+     "name": "subscription_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.SessionUnfollowResponse": {
+   "fields": []
+  },
+  "hrp.v1.InboxItem": {
+   "fields": [
+    {
+     "name": "message_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "mode",
+     "number": 2,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.SendMode"
+    },
+    {
+     "name": "state",
+     "number": 3,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.DeliveryState"
+    },
+    {
+     "name": "content",
+     "number": 4,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.ContentBlock"
+    },
+    {
+     "name": "editable",
+     "number": 5,
+     "type": "bool",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.Inbox": {
+   "fields": [
+    {
+     "name": "next_turn",
+     "number": 1,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.InboxItem"
+    },
+    {
+     "name": "next_step",
+     "number": 2,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.InboxItem"
+    }
+   ]
+  },
+  "hrp.v1.AgentSendRequest": {
+   "fields": [
+    {
+     "name": "mutation",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Mutation"
+    },
+    {
+     "name": "session_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "message_id",
+     "number": 3,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "content",
+     "number": 4,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.ContentBlock"
+    },
+    {
+     "name": "mode",
+     "number": 5,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.SendMode"
+    }
+   ]
+  },
+  "hrp.v1.AgentSendResponse": {
+   "fields": [
+    {
+     "name": "state",
+     "number": 1,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.DeliveryState"
+    },
+    {
+     "name": "inbox",
+     "number": 2,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Inbox"
+    }
+   ]
+  },
+  "hrp.v1.AgentInboxGetRequest": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.AgentInboxGetResponse": {
+   "fields": [
+    {
+     "name": "inbox",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Inbox"
+    }
+   ]
+  },
+  "hrp.v1.AgentCancelRequest": {
+   "fields": [
+    {
+     "name": "mutation",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Mutation"
+    },
+    {
+     "name": "session_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "keep_inbox",
+     "number": 3,
+     "type": "bool",
+     "label": "optional",
+     "optional": true
+    }
+   ],
+   "oneofs": {
+    "_keep_inbox": [
+     "keep_inbox"
+    ]
+   }
+  },
+  "hrp.v1.AgentCancelResponse": {
+   "fields": [
+    {
+     "name": "cancel_requested",
+     "number": 1,
+     "type": "bool",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.AgentStatusRequest": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.AgentStatusResponse": {
+   "fields": [
+    {
+     "name": "agent",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentRef"
+    },
+    {
+     "name": "projection",
+     "number": 2,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Projection"
+    },
+    {
+     "name": "committed_seq",
+     "number": 3,
+     "type": "uint64",
+     "label": "optional"
+    },
+    {
+     "name": "inbox",
+     "number": 4,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Inbox"
+    }
+   ]
+  },
+  "hrp.v1.AgentCreateOrResumeRequest": {
+   "fields": [
+    {
+     "name": "mutation",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Mutation"
+    },
+    {
+     "name": "session_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "model",
+     "number": 3,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ModelSelection"
+    }
+   ]
+  },
+  "hrp.v1.AgentCreateOrResumeResponse": {
+   "fields": [
+    {
+     "name": "agent",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentRef"
+    }
+   ]
+  },
+  "hrp.v1.ApprovalRequest": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "approval_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "call_id",
+     "number": 3,
+     "type": "string",
+     "label": "optional",
+     "optional": true
+    },
+    {
+     "name": "tool_name",
+     "number": 4,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "reason",
+     "number": 5,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "expires_at",
+     "number": 6,
+     "type": "message",
+     "label": "optional",
+     "typeName": "google.protobuf.Timestamp"
+    },
+    {
+     "name": "decision_token",
+     "number": 7,
+     "type": "bytes",
+     "label": "optional"
+    }
+   ],
+   "oneofs": {
+    "_call_id": [
+     "call_id"
+    ]
+   }
+  },
+  "hrp.v1.ApprovalDecideRequest": {
+   "fields": [
+    {
+     "name": "mutation",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Mutation"
+    },
+    {
+     "name": "session_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "approval_id",
+     "number": 3,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "decision_token",
+     "number": 4,
+     "type": "bytes",
+     "label": "optional"
+    },
+    {
+     "name": "decision",
+     "number": 5,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalDecision"
+    }
+   ]
+  },
+  "hrp.v1.ApprovalDecideResponse": {
+   "fields": [
+    {
+     "name": "status",
+     "number": 1,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalDecisionStatus"
+    }
+   ]
+  },
+  "hrp.v1.ApprovalPendingRequest": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.ApprovalPendingResponse": {
+   "fields": [
+    {
+     "name": "requests",
+     "number": 1,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.ApprovalRequest"
+    }
+   ]
+  },
+  "hrp.v1.ApprovalPolicyGetRequest": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.ApprovalPolicyGetResponse": {
+   "fields": [
+    {
+     "name": "policy",
+     "number": 1,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalPolicy"
+    }
+   ]
+  },
+  "hrp.v1.ApprovalPolicySetRequest": {
+   "fields": [
+    {
+     "name": "mutation",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Mutation"
+    },
+    {
+     "name": "session_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "policy",
+     "number": 3,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalPolicy"
+    }
+   ]
+  },
+  "hrp.v1.ApprovalPolicySetResponse": {
+   "fields": [
+    {
+     "name": "policy",
+     "number": 1,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalPolicy"
+    }
+   ]
+  },
+  "hrp.v1.ModelCurrentRequest": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.ModelCurrentResponse": {
+   "fields": [
+    {
+     "name": "selection",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ModelSelection"
+    }
+   ]
+  },
+  "hrp.v1.ModelOption": {
+   "fields": [
+    {
+     "name": "selection",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ModelSelection"
+    },
+    {
+     "name": "capabilities",
+     "number": 2,
+     "type": "string",
+     "label": "repeated"
+    }
+   ]
+  },
+  "hrp.v1.ModelListRequest": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.ModelListResponse": {
+   "fields": [
+    {
+     "name": "models",
+     "number": 1,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.ModelOption"
+    }
+   ]
+  },
+  "hrp.v1.ModelSelectRequest": {
+   "fields": [
+    {
+     "name": "mutation",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Mutation"
+    },
+    {
+     "name": "session_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "selection",
+     "number": 3,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ModelSelection"
+    }
+   ]
+  },
+  "hrp.v1.ModelSelectResponse": {
+   "fields": [
+    {
+     "name": "selection",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ModelSelection"
+    },
+    {
+     "name": "committed_seq",
+     "number": 2,
+     "type": "uint64",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.SessionCommitted": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "events",
+     "number": 2,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.SessionEvent"
+    },
+    {
+     "name": "projection",
+     "number": 3,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Projection"
+    },
+    {
+     "name": "cursor",
+     "number": 4,
+     "type": "uint64",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.AssistantLiveStart": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "attempt",
+     "number": 2,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.LiveAttempt"
+    }
+   ]
+  },
+  "hrp.v1.LiveChunk": {
+   "fields": [
+    {
+     "name": "chunk_index",
+     "number": 1,
+     "type": "uint64",
+     "label": "optional"
+    },
+    {
+     "name": "content",
+     "number": 2,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ContentBlock"
+    }
+   ]
+  },
+  "hrp.v1.AssistantLiveChunk": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "attempt_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "revision",
+     "number": 3,
+     "type": "uint64",
+     "label": "optional"
+    },
+    {
+     "name": "chunks",
+     "number": 4,
+     "type": "message",
+     "label": "repeated",
+     "typeName": "hrp.v1.LiveChunk"
+    }
+   ]
+  },
+  "hrp.v1.AssistantLiveEnd": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "attempt_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "revision",
+     "number": 3,
+     "type": "uint64",
+     "label": "optional"
+    },
+    {
+     "name": "outcome",
+     "number": 4,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.AttemptOutcome"
+    },
+    {
+     "name": "committed_seq",
+     "number": 5,
+     "type": "uint64",
+     "label": "optional",
+     "optional": true
+    }
+   ],
+   "oneofs": {
+    "_committed_seq": [
+     "committed_seq"
+    ]
+   }
+  },
+  "hrp.v1.AgentStatusChanged": {
+   "fields": [
+    {
+     "name": "agent",
+     "number": 1,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentRef"
+    },
+    {
+     "name": "committed_seq",
+     "number": 2,
+     "type": "uint64",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.InboxChanged": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "inbox",
+     "number": 2,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Inbox"
+    }
+   ]
+  },
+  "hrp.v1.ApprovalResolved": {
+   "fields": [
+    {
+     "name": "session_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "approval_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "outcome",
+     "number": 3,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalOutcome"
+    }
+   ]
+  },
+  "hrp.v1.SubscriptionReset": {
+   "fields": [
+    {
+     "name": "subscription_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "reason",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.ProtocolError": {
+   "fields": [
+    {
+     "name": "code",
+     "number": 1,
+     "type": "enum",
+     "label": "optional",
+     "typeName": "hrp.v1.ErrorCode"
+    },
+    {
+     "name": "message",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "retryable",
+     "number": 3,
+     "type": "bool",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.UnsupportedRequest": {
+   "fields": [
+    {
+     "name": "operation",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.Envelope": {
+   "fields": [
+    {
+     "name": "version",
+     "number": 1,
+     "type": "uint32",
+     "label": "optional"
+    },
+    {
+     "name": "request_id",
+     "number": 2,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "reply_to",
+     "number": 3,
+     "type": "string",
+     "label": "optional",
+     "optional": true
+    },
+    {
+     "name": "harness_id",
+     "number": 4,
+     "type": "string",
+     "label": "optional",
+     "optional": true
+    },
+    {
+     "name": "subscription_id",
+     "number": 5,
+     "type": "string",
+     "label": "optional",
+     "optional": true
+    },
+    {
+     "name": "request",
+     "number": 10,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Request"
+    },
+    {
+     "name": "response",
+     "number": 11,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Response"
+    },
+    {
+     "name": "event",
+     "number": 12,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Event"
+    },
+    {
+     "name": "error",
+     "number": 13,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ProtocolError"
+    }
+   ],
+   "oneofs": {
+    "_reply_to": [
+     "reply_to"
+    ],
+    "_harness_id": [
+     "harness_id"
+    ],
+    "_subscription_id": [
+     "subscription_id"
+    ],
+    "body": [
+     "request",
+     "response",
+     "event",
+     "error"
+    ]
+   }
+  },
+  "hrp.v1.RelayForward": {
+   "fields": [
+    {
+     "name": "route_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "principal",
+     "number": 2,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Principal"
+    },
+    {
+     "name": "envelope",
+     "number": 3,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Envelope"
+    },
+    {
+     "name": "connection_id",
+     "number": 4,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.RelayConnectionClosed": {
+   "fields": [
+    {
+     "name": "connection_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    }
+   ]
+  },
+  "hrp.v1.HarnessForward": {
+   "fields": [
+    {
+     "name": "route_id",
+     "number": 1,
+     "type": "string",
+     "label": "optional"
+    },
+    {
+     "name": "envelope",
+     "number": 2,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.Envelope"
+    }
+   ]
+  },
+  "hrp.v1.Request": {
+   "fields": [
+    {
+     "name": "auth_challenge",
+     "number": 10,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AuthChallengeRequest"
+    },
+    {
+     "name": "auth_prove",
+     "number": 11,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AuthProveRequest"
+    },
+    {
+     "name": "harness_register",
+     "number": 12,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.HarnessRegisterRequest"
+    },
+    {
+     "name": "pair_create",
+     "number": 13,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.PairCreateRequest"
+    },
+    {
+     "name": "pair_redeem",
+     "number": 14,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.PairRedeemRequest"
+    },
+    {
+     "name": "membership_snapshot",
+     "number": 15,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.MembershipSnapshotRequest"
+    },
+    {
+     "name": "harness_status",
+     "number": 16,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.HarnessStatusRequest"
+    },
+    {
+     "name": "capabilities_get",
+     "number": 17,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.CapabilitiesGetRequest"
+    },
+    {
+     "name": "session_list",
+     "number": 18,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionListRequest"
+    },
+    {
+     "name": "session_create",
+     "number": 19,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionCreateRequest"
+    },
+    {
+     "name": "session_open",
+     "number": 20,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionOpenRequest"
+    },
+    {
+     "name": "session_snapshot",
+     "number": 21,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionSnapshotRequest"
+    },
+    {
+     "name": "session_page",
+     "number": 22,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionPageRequest"
+    },
+    {
+     "name": "session_follow",
+     "number": 23,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionFollowRequest"
+    },
+    {
+     "name": "session_unfollow",
+     "number": 24,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionUnfollowRequest"
+    },
+    {
+     "name": "agent_send",
+     "number": 25,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentSendRequest"
+    },
+    {
+     "name": "agent_inbox_get",
+     "number": 26,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentInboxGetRequest"
+    },
+    {
+     "name": "agent_cancel",
+     "number": 27,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentCancelRequest"
+    },
+    {
+     "name": "agent_status",
+     "number": 28,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentStatusRequest"
+    },
+    {
+     "name": "agent_create_or_resume",
+     "number": 29,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentCreateOrResumeRequest"
+    },
+    {
+     "name": "approval_decide",
+     "number": 30,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalDecideRequest"
+    },
+    {
+     "name": "approval_pending",
+     "number": 31,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalPendingRequest"
+    },
+    {
+     "name": "approval_policy_get",
+     "number": 32,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalPolicyGetRequest"
+    },
+    {
+     "name": "approval_policy_set",
+     "number": 33,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalPolicySetRequest"
+    },
+    {
+     "name": "model_current",
+     "number": 34,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ModelCurrentRequest"
+    },
+    {
+     "name": "model_list",
+     "number": 35,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ModelListRequest"
+    },
+    {
+     "name": "model_select",
+     "number": 36,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ModelSelectRequest"
+    },
+    {
+     "name": "unsupported",
+     "number": 100,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.UnsupportedRequest"
+    }
+   ],
+   "oneofs": {
+    "operation": [
+     "auth_challenge",
+     "auth_prove",
+     "harness_register",
+     "pair_create",
+     "pair_redeem",
+     "membership_snapshot",
+     "harness_status",
+     "capabilities_get",
+     "session_list",
+     "session_create",
+     "session_open",
+     "session_snapshot",
+     "session_page",
+     "session_follow",
+     "session_unfollow",
+     "agent_send",
+     "agent_inbox_get",
+     "agent_cancel",
+     "agent_status",
+     "agent_create_or_resume",
+     "approval_decide",
+     "approval_pending",
+     "approval_policy_get",
+     "approval_policy_set",
+     "model_current",
+     "model_list",
+     "model_select",
+     "unsupported"
+    ]
+   }
+  },
+  "hrp.v1.Response": {
+   "fields": [
+    {
+     "name": "auth_challenge",
+     "number": 10,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AuthChallengeResponse"
+    },
+    {
+     "name": "auth_prove",
+     "number": 11,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AuthProveResponse"
+    },
+    {
+     "name": "harness_register",
+     "number": 12,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.HarnessRegisterResponse"
+    },
+    {
+     "name": "pair_create",
+     "number": 13,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.PairCreateResponse"
+    },
+    {
+     "name": "pair_redeem",
+     "number": 14,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.PairRedeemResponse"
+    },
+    {
+     "name": "membership_snapshot",
+     "number": 15,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.MembershipSnapshotResponse"
+    },
+    {
+     "name": "harness_status",
+     "number": 16,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.HarnessStatusResponse"
+    },
+    {
+     "name": "capabilities_get",
+     "number": 17,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.CapabilitiesGetResponse"
+    },
+    {
+     "name": "session_list",
+     "number": 18,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionListResponse"
+    },
+    {
+     "name": "session_create",
+     "number": 19,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionCreateResponse"
+    },
+    {
+     "name": "session_open",
+     "number": 20,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionOpenResponse"
+    },
+    {
+     "name": "session_snapshot",
+     "number": 21,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionSnapshotResponse"
+    },
+    {
+     "name": "session_page",
+     "number": 22,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionPageResponse"
+    },
+    {
+     "name": "session_follow",
+     "number": 23,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionFollowResponse"
+    },
+    {
+     "name": "session_unfollow",
+     "number": 24,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionUnfollowResponse"
+    },
+    {
+     "name": "agent_send",
+     "number": 25,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentSendResponse"
+    },
+    {
+     "name": "agent_inbox_get",
+     "number": 26,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentInboxGetResponse"
+    },
+    {
+     "name": "agent_cancel",
+     "number": 27,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentCancelResponse"
+    },
+    {
+     "name": "agent_status",
+     "number": 28,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentStatusResponse"
+    },
+    {
+     "name": "agent_create_or_resume",
+     "number": 29,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentCreateOrResumeResponse"
+    },
+    {
+     "name": "approval_decide",
+     "number": 30,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalDecideResponse"
+    },
+    {
+     "name": "approval_pending",
+     "number": 31,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalPendingResponse"
+    },
+    {
+     "name": "approval_policy_get",
+     "number": 32,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalPolicyGetResponse"
+    },
+    {
+     "name": "approval_policy_set",
+     "number": 33,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalPolicySetResponse"
+    },
+    {
+     "name": "model_current",
+     "number": 34,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ModelCurrentResponse"
+    },
+    {
+     "name": "model_list",
+     "number": 35,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ModelListResponse"
+    },
+    {
+     "name": "model_select",
+     "number": 36,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ModelSelectResponse"
+    }
+   ],
+   "oneofs": {
+    "operation": [
+     "auth_challenge",
+     "auth_prove",
+     "harness_register",
+     "pair_create",
+     "pair_redeem",
+     "membership_snapshot",
+     "harness_status",
+     "capabilities_get",
+     "session_list",
+     "session_create",
+     "session_open",
+     "session_snapshot",
+     "session_page",
+     "session_follow",
+     "session_unfollow",
+     "agent_send",
+     "agent_inbox_get",
+     "agent_cancel",
+     "agent_status",
+     "agent_create_or_resume",
+     "approval_decide",
+     "approval_pending",
+     "approval_policy_get",
+     "approval_policy_set",
+     "model_current",
+     "model_list",
+     "model_select"
+    ]
+   }
+  },
+  "hrp.v1.Event": {
+   "fields": [
+    {
+     "name": "session_committed",
+     "number": 10,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SessionCommitted"
+    },
+    {
+     "name": "assistant_live_start",
+     "number": 11,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AssistantLiveStart"
+    },
+    {
+     "name": "assistant_live_chunk",
+     "number": 12,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AssistantLiveChunk"
+    },
+    {
+     "name": "assistant_live_end",
+     "number": 13,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AssistantLiveEnd"
+    },
+    {
+     "name": "agent_status_changed",
+     "number": 14,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.AgentStatusChanged"
+    },
+    {
+     "name": "inbox_changed",
+     "number": 15,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.InboxChanged"
+    },
+    {
+     "name": "approval_request",
+     "number": 16,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalRequest"
+    },
+    {
+     "name": "approval_resolved",
+     "number": 17,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.ApprovalResolved"
+    },
+    {
+     "name": "subscription_reset",
+     "number": 18,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.SubscriptionReset"
+    },
+    {
+     "name": "relay_connection_closed",
+     "number": 19,
+     "type": "message",
+     "label": "optional",
+     "typeName": "hrp.v1.RelayConnectionClosed"
+    }
+   ],
+   "oneofs": {
+    "operation": [
+     "session_committed",
+     "assistant_live_start",
+     "assistant_live_chunk",
+     "assistant_live_end",
+     "agent_status_changed",
+     "inbox_changed",
+     "approval_request",
+     "approval_resolved",
+     "subscription_reset",
+     "relay_connection_closed"
+    ]
+   }
+  }
+ },
+ "enums": {
+  "google.protobuf.NullValue": {
+   "NULL_VALUE": 0
+  },
+  "hrp.v1.MemberRole": {
+   "MEMBER_ROLE_UNSPECIFIED": 0,
+   "MEMBER_ROLE_OWNER": 1,
+   "MEMBER_ROLE_MEMBER": 2
+  },
+  "hrp.v1.Permission": {
+   "PERMISSION_UNSPECIFIED": 0,
+   "PERMISSION_READ": 1,
+   "PERMISSION_WRITE": 2,
+   "PERMISSION_CANCEL": 3,
+   "PERMISSION_APPROVE": 4,
+   "PERMISSION_MODEL_SELECT": 5,
+   "PERMISSION_POLICY_SET": 6,
+   "PERMISSION_INJECT": 7
+  },
+  "hrp.v1.AgentState": {
+   "AGENT_STATE_UNSPECIFIED": 0,
+   "AGENT_STATE_IDLE": 1,
+   "AGENT_STATE_RUNNING": 2,
+   "AGENT_STATE_UNLOADED": 3
+  },
+  "hrp.v1.PeerKind": {
+   "PEER_KIND_UNSPECIFIED": 0,
+   "PEER_KIND_MOBILE": 1,
+   "PEER_KIND_HARNESS": 2
+  },
+  "hrp.v1.PairMode": {
+   "PAIR_MODE_UNSPECIFIED": 0,
+   "PAIR_MODE_OWNER": 1,
+   "PAIR_MODE_DEVICE_LINK": 2,
+   "PAIR_MODE_INVITE": 3
+  },
+  "hrp.v1.SendMode": {
+   "SEND_MODE_UNSPECIFIED": 0,
+   "SEND_MODE_FOLLOWUP": 1,
+   "SEND_MODE_STEER": 2,
+   "SEND_MODE_INJECT": 3
+  },
+  "hrp.v1.DeliveryState": {
+   "DELIVERY_STATE_UNSPECIFIED": 0,
+   "DELIVERY_STATE_ACCEPTED": 1,
+   "DELIVERY_STATE_QUEUED": 2,
+   "DELIVERY_STATE_CLAIMED": 3,
+   "DELIVERY_STATE_COMMITTED": 4,
+   "DELIVERY_STATE_DISCARDED": 5,
+   "DELIVERY_STATE_REJECTED": 6
+  },
+  "hrp.v1.ApprovalPolicy": {
+   "APPROVAL_POLICY_UNSPECIFIED": 0,
+   "APPROVAL_POLICY_ASK": 1,
+   "APPROVAL_POLICY_NEVER": 2
+  },
+  "hrp.v1.ApprovalDecision": {
+   "APPROVAL_DECISION_UNSPECIFIED": 0,
+   "APPROVAL_DECISION_ALLOW_ONCE": 1,
+   "APPROVAL_DECISION_REJECT": 2
+  },
+  "hrp.v1.ApprovalOutcome": {
+   "APPROVAL_OUTCOME_UNSPECIFIED": 0,
+   "APPROVAL_OUTCOME_ALLOWED_ONCE": 1,
+   "APPROVAL_OUTCOME_REJECTED": 2,
+   "APPROVAL_OUTCOME_CANCELLED": 3,
+   "APPROVAL_OUTCOME_UNAVAILABLE": 4
+  },
+  "hrp.v1.ApprovalDecisionStatus": {
+   "APPROVAL_DECISION_STATUS_UNSPECIFIED": 0,
+   "APPROVAL_DECISION_STATUS_ACCEPTED": 1,
+   "APPROVAL_DECISION_STATUS_STALE": 2,
+   "APPROVAL_DECISION_STATUS_FORBIDDEN": 3,
+   "APPROVAL_DECISION_STATUS_ALREADY_RESOLVED": 4
+  },
+  "hrp.v1.AttemptOutcome": {
+   "ATTEMPT_OUTCOME_UNSPECIFIED": 0,
+   "ATTEMPT_OUTCOME_COMMITTED": 1,
+   "ATTEMPT_OUTCOME_ABANDONED": 2,
+   "ATTEMPT_OUTCOME_FAILED": 3,
+   "ATTEMPT_OUTCOME_CANCELLED": 4
+  },
+  "hrp.v1.ErrorCode": {
+   "ERROR_CODE_UNSPECIFIED": 0,
+   "ERROR_CODE_UNAUTHENTICATED": 1,
+   "ERROR_CODE_FORBIDDEN": 2,
+   "ERROR_CODE_HARNESS_OFFLINE": 3,
+   "ERROR_CODE_SESSION_NOT_FOUND": 4,
+   "ERROR_CODE_AGENT_NOT_LOADED": 5,
+   "ERROR_CODE_AGENT_BUSY": 6,
+   "ERROR_CODE_OPERATION_ALREADY_HANDLED": 7,
+   "ERROR_CODE_SUBSCRIPTION_RESET_REQUIRED": 8,
+   "ERROR_CODE_APPROVAL_STALE": 9,
+   "ERROR_CODE_APPROVAL_UNAVAILABLE": 10,
+   "ERROR_CODE_UNSUPPORTED_OPERATION": 11,
+   "ERROR_CODE_UPSTREAM_INCOMPATIBLE": 12,
+   "ERROR_CODE_INTERNAL": 13,
+   "ERROR_CODE_INVALID_ARGUMENT": 14,
+   "ERROR_CODE_IDEMPOTENCY_CONFLICT": 15,
+   "ERROR_CODE_ACL_NOT_SYNCED": 16,
+   "ERROR_CODE_RESOURCE_EXHAUSTED": 17
+  }
+ }
+}

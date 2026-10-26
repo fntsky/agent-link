@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "远程配对",
+    "description": "将本机 Harness 连接到 HRP v1 Relay，让已配对的手机安全访问本地 Session。"
+  }
+}
