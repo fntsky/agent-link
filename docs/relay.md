@@ -45,9 +45,11 @@ Relay 只向这个订阅所绑定的手机连接发送，校验来源 Harness �
   手机断线删除 pending routes 和订阅；没有跨重连回放。两种断线都不触发 agent.cancel。
 - SIGINT/SIGTERM 停止接收并关闭所有 WebSocket，随后退出。
 
-Relay 仅检查成员层授权；Session ACL、审批 token 和时间校验、Inbox 调度、durable seq、
-业务幂等、模型选择时机是 Harness 的职责。Relay 会检查基本字段、模式和操作 ID，
-但不替代 Harness 对收到的每次请求进行独立验证。Relay 不缓存 Session 正文或审批 token。
+Relay 仅检查成员层授权；Session 目录与操作执行、审批 token 和时间校验、Inbox 调度、
+durable seq、业务幂等、模型选择时机是 Harness 的职责。Harness 的 Session 目录与本地
+工作区一致，不区分 Adapter 专属 Session；Relay 不持久化也不过滤 Session。
+Relay 会检查基本字段、模式和操作 ID，但不替代 Harness 对收到的每次请求进行独立验证。
+Relay 不缓存 Session 正文或审批 token。
 身份存储目前使用单个 SQLite 连接，由 Relay 状态锁串行化短事务；当前面向单实例部署。
 
 ## 当前实现边界
