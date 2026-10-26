@@ -223,9 +223,12 @@ async def run(server):
             await asyncio.sleep(0.01)
         assert guest.identity not in harness.members
         replacement_guest = await phone(identity=guest.identity, key=guest.key)
-        await replacement_guest.authenticate()
-        await expect_error(pb.ERROR_CODE_FORBIDDEN, replacement_guest.call("session_list", pb.SessionListRequest()))
-        passed("member revoke bumps ACL, closes the device and blocks its next business request")
+        await expect_error(pb.ERROR_CODE_UNAUTHENTICATED, replacement_guest.authenticate())
+        invite_again = await owner.call("pair_create", pb.PairCreateRequest(mutation=pb.Mutation(client_operation_id=uid()), harness_id=harness.identity, mode=3))
+        repaired = await replacement_guest.redeem(invite_again.pairing_code)
+        assert repaired.user_id != paired.user_id
+        await ready(replacement_guest)
+        passed("member revoke forgets the device identity and allows the same phone to re-pair")
 
         await owner.send_message(session, "approval")
         approval = await owner.event("approval_request")
@@ -308,7 +311,7 @@ async def run(server):
         with sqlite3.connect(server.database) as db:
             tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             assert tables == {"settings", "harnesses", "devices", "members", "pairs", "mutations"}
-            assert db.execute("SELECT COUNT(*) FROM members").fetchone()[0] == 2
+            assert db.execute("SELECT COUNT(*) FROM members").fetchone()[0] == 3
         await server.start()
         await harness.start(TOKEN, register=False)
         restored = await phone(identity=owner.identity, key=owner.key)
