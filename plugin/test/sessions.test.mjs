@@ -43,10 +43,21 @@ function makeContext() {
   return {
     sessionController: {
       async list() {
-        return { items: [{ sessionId: 's1', updatedAt: NOW, projections: { asOfSeq: 6 } }] };
+        return { items: [
+          { sessionId: 's1', updatedAt: NOW, cwd: '/work/project-one', projections: { asOfSeq: 6, values: { title: 'Project One' } } },
+          { sessionId: 'local-1', updatedAt: NOW - 1000, cwd: '/work/Local Project', projections: { asOfSeq: 0, values: {} } },
+        ] };
       },
       async create() { return { sessionId: 's1' }; },
-      async inspect() { return { meta: { id: 's1', createdAt: NOW }, events }; },
+      async rename(request) { this.lastRename = request; return { title: request.title, seq: 7 }; },
+      async inspect(sessionId) {
+        if (sessionId !== 's1' && sessionId !== 'local-1') {
+          const error = new Error('not found');
+          error.code = 'session/not-found';
+          throw error;
+        }
+        return { meta: { id: sessionId, createdAt: NOW, cwd: '/work/project-one' }, events };
+      },
       async resolveAgent() { return { agent: { id: 's1' } }; },
       async prompt(request) { this.lastPrompt = request; return { accepted: true }; },
       cancel() { return { accepted: true }; },
@@ -75,7 +86,7 @@ function makeContext() {
 }
 
 function bridgeFor() {
-  const state = { remoteSessions: {}, registrationToken: '', relayUrl: 'ws://x' };
+  const state = { registrationToken: '', relayUrl: 'ws://x' };
   const adapter = new FakeAdapter();
   const bridge = new SessionBridge({ ctx: makeContext(), adapter, state });
   adapter.handlers = bridge.handlers;
@@ -91,11 +102,21 @@ test('session list/create/open/snapshot/page produce valid HRP messages', async 
   const created = await adapter.handlers.session_create({ title: 'Remote chat', mutation: { client_operation_id: 'create-1' } }, { principal });
   encode('hrp.v1.SessionCreateResponse', created);
   assert.equal(created.baseline.session.title, 'Remote chat');
-  assert.equal(state.remoteSessions.s1.userId, 'u1');
+  assert.equal(state.remoteSessions, undefined);
 
   const list = await adapter.handlers.session_list({}, { principal });
   encode('hrp.v1.SessionListResponse', list);
-  assert.equal(list.sessions.length, 1);
+  assert.equal(list.sessions.length, 2);
+  assert.deepEqual(list.sessions.map((session) => session.title).sort(), ['Local Project', 'Project One']);
+
+  const firstPage = await adapter.handlers.session_list({ page_size: 1 }, { principal });
+  assert.equal(firstPage.sessions.length, 1);
+  assert.equal(firstPage.has_more, true);
+  assert.ok(firstPage.next_page_token);
+  const secondPage = await adapter.handlers.session_list({ page_size: 1, page_token: firstPage.next_page_token }, { principal });
+  assert.equal(secondPage.sessions.length, 1);
+  assert.equal(secondPage.has_more, false);
+  assert.notEqual(secondPage.sessions[0].session_id, firstPage.sessions[0].session_id);
 
   const opened = await adapter.handlers.session_open({ session_id: 's1', resume_agent: true, mutation: { client_operation_id: 'open-1' } }, { principal });
   encode('hrp.v1.SessionOpenResponse', opened);
@@ -113,13 +134,12 @@ test('session list/create/open/snapshot/page produce valid HRP messages', async 
   assert.equal(page.events[0].tool_result.call_id, 'c1');
 });
 
-test('session ACL rejects unknown and foreign sessions', async () => {
+test('every member sees the same native directory; unknown sessions stay hidden', async () => {
   const { adapter } = bridgeFor();
   await adapter.handlers.session_create({ mutation: { client_operation_id: 'create-2' } }, { principal });
-  await assert.rejects(
-    adapter.handlers.session_open({ session_id: 's1', mutation: { client_operation_id: 'open-2' } }, { principal: other }),
-    (error) => error.code === 'ERROR_CODE_FORBIDDEN',
-  );
+  const opened = await adapter.handlers.session_open({ session_id: 's1', mutation: { client_operation_id: 'open-2' } }, { principal: other });
+  encode('hrp.v1.SessionOpenResponse', opened);
+  assert.equal(opened.baseline.session.session_id, 's1');
   await assert.rejects(
     adapter.handlers.session_snapshot({ session_id: 'nope' }, { principal }),
     (error) => error.code === 'ERROR_CODE_SESSION_NOT_FOUND',

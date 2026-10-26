@@ -69,6 +69,32 @@ function mapContent(blocks) {
   return (blocks || []).map(contentBlock).filter(Boolean);
 }
 
+function basename(path) {
+  if (typeof path !== 'string' || path === '') return '';
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts.length === 0 ? '' : parts[parts.length - 1];
+}
+
+function titleFromEvents(events) {
+  for (let index = (events?.length || 0) - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event?.type === 'session/title' && typeof event.data?.title === 'string' && event.data.title !== '') {
+      return event.data.title;
+    }
+  }
+  return '';
+}
+
+function displayTitle(row, events) {
+  const eventTitle = titleFromEvents(events);
+  if (eventTitle) return eventTitle;
+  const projected = row?.projections?.values?.title;
+  if (typeof projected === 'string' && projected !== '') return projected;
+  const directory = basename(row?.cwd);
+  if (directory) return directory;
+  return String(row?.sessionId || row?.session_id || '');
+}
+
 function agentState(agent) {
   if (!agent) return 3; // AGENT_STATE_UNLOADED
   return agent.status === 'running' ? 2 : 1;
@@ -240,7 +266,6 @@ export class SessionBridge {
     this.ctx = ctx;
     this.adapter = adapter;
     this.state = state;
-    if (!this.state.remoteSessions || typeof this.state.remoteSessions !== 'object') this.state.remoteSessions = {};
     if (!this.state.receipts || typeof this.state.receipts !== 'object') this.state.receipts = {};
     this.logger = logger;
     this.subscriptions = new Map();
@@ -263,36 +288,22 @@ export class SessionBridge {
     return this.ctx.agents?.get?.(sessionId);
   }
 
-  #entry(sessionId) {
-    return this.state.remoteSessions?.[sessionId];
-  }
-
-  #requireSession(principal, sessionId) {
-    const entry = this.#entry(sessionId);
-    if (!entry) throw new AdapterError('ERROR_CODE_SESSION_NOT_FOUND', 'Session not found on this Harness');
-    if (entry.userId !== principal.user_id) throw forbidden('Session belongs to another user');
-    return entry;
-  }
-
-  #title(sessionId) {
-    return this.#entry(sessionId)?.title || `Session ${String(sessionId).slice(0, 8)}`;
-  }
-
-  #summary(sessionId, cursor, updatedAt) {
+  #summary(sessionId, cursor, updatedAt, title) {
     const live = this.#live(sessionId);
     return {
       session_id: sessionId,
-      title: this.#title(sessionId),
+      title: title || String(sessionId),
       committed_seq: Number(cursor || 0),
       agent_state: agentState(live),
       updated_at: timestamp(updatedAt || Date.now()),
     };
   }
 
-  #baseline(sessionId, events, cursor, tailLimit = 50) {
+  #baseline(sessionId, events, cursor, tailLimit = 50, fallbackTitle = '') {
     const seq = Number(cursor || 0);
+    const title = titleFromEvents(events) || fallbackTitle || String(sessionId);
     return {
-      session: this.#summary(sessionId, seq, events[events.length - 1]?.time),
+      session: this.#summary(sessionId, seq, events[events.length - 1]?.time, title),
       cursor: seq,
       projection: {
         schema_version: 1,
@@ -306,10 +317,27 @@ export class SessionBridge {
     };
   }
 
+  #pageOffset(token, principal) {
+    if (token === undefined || token === null || token === '') return 0;
+    try {
+      const parsed = JSON.parse(Buffer.from(String(token), 'base64url').toString('utf8'));
+      if (parsed.u !== principal.user_id || !Number.isInteger(parsed.o) || parsed.o < 0) throw new Error('mismatch');
+      return parsed.o;
+    } catch {
+      throw invalid('invalid session page token');
+    }
+  }
+
+  #pageToken(offset, principal) {
+    return Buffer.from(JSON.stringify({ u: principal.user_id, o: offset }), 'utf8').toString('base64url');
+  }
+
   async #inspect(sessionId) {
     const timeout = timeoutSignal(15_000);
     try {
       return await this.#controller().inspect(sessionId, timeout.signal);
+    } catch (error) {
+      throw this.#mapRemoteError(error);
     } finally {
       timeout.clear();
     }
@@ -393,35 +421,47 @@ export class SessionBridge {
         const timeout = timeoutSignal(15_000);
         const rows = await this.#controller().list({}, timeout.signal).finally(() => timeout.clear());
         const items = rows.items || [];
-        const sessions = [];
-        for (const [sessionId, entry] of Object.entries(this.state.remoteSessions || {})) {
-          if (entry.userId !== principal.user_id) continue;
-          const row = items.find((item) => String(item.sessionId) === sessionId);
-          if (!row) continue;
-          sessions.push(this.#summary(sessionId, row.projections?.asOfSeq, row.updatedAt));
-        }
-        return { sessions, has_more: false };
+        const offset = this.#pageOffset(payload.page_token, principal);
+        const size = Math.min(200, Math.max(1, Number(payload.page_size) || 50));
+        const page = items.slice(offset, offset + size);
+        const sessions = page.map((row) => {
+          const sessionId = String(row.sessionId);
+          return this.#summary(sessionId, row.projections?.asOfSeq, row.updatedAt, displayTitle(row));
+        });
+        const hasMore = offset + page.length < items.length;
+        return {
+          sessions,
+          has_more: hasMore,
+          ...(hasMore ? { next_page_token: this.#pageToken(offset + page.length, principal) } : {}),
+        };
       },
 
-      session_create: async (payload, { principal }) => {
+      session_create: async (payload) => {
         const value = await this.#controller().create({});
         const sessionId = String(value.sessionId);
-        const title = String(payload.title || '').trim() || `Session ${sessionId.slice(0, 8)}`;
-        this.state.remoteSessions[sessionId] = {
-          userId: principal.user_id,
-          deviceId: principal.device_id,
-          title,
-          createdAt: Date.now(),
-        };
-        await saveState(this.state);
+        const title = String(payload.title || '').trim();
+        if (title !== '') {
+          try {
+            await this.#controller().rename({ sessionId, title });
+          } catch (error) {
+            this.logger.warn?.(`[dsh-remote] native session title was not applied: ${error.message}`);
+          }
+        }
+        let events = [];
+        try {
+          const inspection = await this.#inspect(sessionId);
+          events = inspection.events || [];
+        } catch {
+          // A just-created Session can briefly be absent from the cold reader.
+        }
+        const cursor = events[events.length - 1]?.seq || 0;
         return {
-          baseline: this.#baseline(sessionId, [], 0),
-          agent: { session_id: sessionId, agent_id: sessionId, state: 3 },
+          baseline: this.#baseline(sessionId, events, cursor, 50, title),
+          agent: { session_id: sessionId, agent_id: sessionId, state: agentState(this.#live(sessionId)) },
         };
       },
 
-      session_open: async (payload, { principal }) => {
-        this.#requireSession(principal, payload.session_id);
+      session_open: async (payload) => {
         const inspection = await this.#inspect(payload.session_id);
         if (payload.resume_agent) {
           try {
@@ -433,21 +473,19 @@ export class SessionBridge {
         const events = inspection.events || [];
         const cursor = events[events.length - 1]?.seq || 0;
         return {
-          baseline: this.#baseline(payload.session_id, events, cursor, 50),
+          baseline: this.#baseline(payload.session_id, events, cursor, 50, basename(inspection.meta?.cwd)),
           agent: { session_id: payload.session_id, agent_id: payload.session_id, state: agentState(this.#live(payload.session_id)) },
         };
       },
 
-      session_snapshot: async (payload, { principal }) => {
-        this.#requireSession(principal, payload.session_id);
+      session_snapshot: async (payload) => {
         const inspection = await this.#inspect(payload.session_id);
         const events = inspection.events || [];
         const cursor = events[events.length - 1]?.seq || 0;
-        return { baseline: this.#baseline(payload.session_id, events, cursor, payload.tail_limit) };
+        return { baseline: this.#baseline(payload.session_id, events, cursor, payload.tail_limit, basename(inspection.meta?.cwd)) };
       },
 
-      session_page: async (payload, { principal }) => {
-        this.#requireSession(principal, payload.session_id);
+      session_page: async (payload) => {
         const inspection = await this.#inspect(payload.session_id);
         const all = inspection.events || [];
         const size = Math.min(200, Math.max(1, Number(payload.page_size) || 50));
@@ -466,8 +504,7 @@ export class SessionBridge {
         };
       },
 
-      session_follow: async (payload, { principal, forward }) => {
-        this.#requireSession(principal, payload.session_id);
+      session_follow: async (payload, { forward }) => {
         const subscriptionId = randomUUID();
         const abort = new AbortController();
         const iterator = this.#controller().follow(
@@ -484,6 +521,9 @@ export class SessionBridge {
               timeoutTimer.unref?.();
             }),
           ]);
+        } catch (error) {
+          abort.abort();
+          throw this.#mapRemoteError(error);
         } finally {
           clearTimeout(timeoutTimer);
         }
@@ -529,7 +569,6 @@ export class SessionBridge {
       },
 
       agent_send: async (payload, { principal }) => {
-        this.#requireSession(principal, payload.session_id);
         this.#assertMode(payload.mode);
         try {
           await this.#controller().prompt({
@@ -546,13 +585,11 @@ export class SessionBridge {
       },
 
       agent_cancel: async (payload, { principal }) => {
-        this.#requireSession(principal, payload.session_id);
         const value = this.#controller().cancel({ sessionId: payload.session_id });
         return { cancel_requested: Boolean(value?.accepted ?? true) };
       },
 
       agent_status: async (payload, { principal }) => {
-        this.#requireSession(principal, payload.session_id);
         const inspection = await this.#inspect(payload.session_id);
         const events = inspection.events || [];
         const cursor = events[events.length - 1]?.seq || 0;
@@ -564,13 +601,12 @@ export class SessionBridge {
         };
       },
 
-      agent_inbox_get: async (payload, { principal }) => {
-        this.#requireSession(principal, payload.session_id);
+      agent_inbox_get: async (payload) => {
+        await this.#inspect(payload.session_id);
         return { inbox: { next_turn: [], next_step: [] } };
       },
 
       agent_create_or_resume: async (payload, { principal }) => {
-        this.#requireSession(principal, payload.session_id);
         try {
           await this.#controller().resolveAgent(payload.session_id);
         } catch (error) {
@@ -581,8 +617,8 @@ export class SessionBridge {
         };
       },
 
-      model_current: async (payload, { principal }) => {
-        this.#requireSession(principal, payload.session_id);
+      model_current: async (payload) => {
+        await this.#inspect(payload.session_id);
         const live = this.#live(payload.session_id);
         const header = live?.session?.requestHeader?.();
         const config = header?.config || live?.options;
@@ -613,7 +649,6 @@ export class SessionBridge {
       },
 
       model_select: async (payload, { principal }) => {
-        this.#requireSession(principal, payload.session_id);
         const selection = payload.selection || {};
         try {
           const value = await this.#controller().selectModel({

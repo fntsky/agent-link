@@ -17,21 +17,26 @@
 | 配对 | Harness 发起 owner 配对，设置页显示一次性配对码、有效期和复制按钮 |
 | 设置页 | `settings.plugins.tab`：远程地址、显示名称、注册令牌、连接状态、设备列表 |
 | 状态查询 | `harness.status` 由 Relay 处理；插件状态 RPC 只对已认证浏览器开放 |
-| Session | `session.list/create/open/snapshot/page/follow/unfollow` |
+| Session | `session.list/create/open/snapshot/page/follow/unfollow`；目录与本地工作区一致，不做插件专属过滤 |
 | Agent | `agent.send/cancel/status/inbox_get/create_or_resume` |
 | 实时流 | `session_committed`、`assistant_live_start/chunk/end` |
 | 模型 | `model.current/list/select` |
 
 ### 安全边界
 
-- 远程 Session 目录默认最小化：只有通过本插件 `session.create` 创建、并绑定到
-  对应用户的 Session 才会出现在 `session.list`。本机已有 Session 不会自动暴露。
-- 每个业务请求都校验 Relay 注入的 `RelayForward.principal`、成员关系和
-  `acl_version`；不信任手机构造的 principal。
+- Session 目录完全开放：`session.list` 直接投影 DSH 工作区的原生 Session 目录，
+  已认证成员看到的本机 Session 与工作区一致。不存在插件专属 Session、创建者绑定
+  或单独的远程目录；`session.create` 创建的就是普通本机 Session。
+- 成员 ACL 是唯一边界：每个业务请求校验 Relay 注入的 `RelayForward.principal`、
+  成员关系和 `acl_version`；不信任手机构造的 principal。未认证/已撤销成员不可读。
 - 每个订阅绑定手机 `connection_id`；手机断线或 Relay 断线时清理订阅，
   但不取消 Agent、不删除 Session。
 - 设置 RPC 走 DSH Connection 的浏览器认证和 Host/Origin 检查；未认证请求返回
   401/403。设置页不会把注册令牌或私钥回传给浏览器。
+
+Session 标题直接取 DSH 的 `title` 投影；没有标题时依次使用工作目录名和 Session ID，
+因此手机与工作区的显示名一致。`session.create` 带标题时会通过 `sessionController.rename`
+写入原生 `session/title` 事件，之后在工作区也能看到。
 
 ### 当前限制
 
@@ -39,8 +44,6 @@
   `approval_policy_set` 明确返回不支持。
 - Inbox 查询返回空，队列编辑不在本版范围。
 - 只处理文本 `ContentBlock`；图片、文件、工作区传输未实现。
-- `session.list` 不返回本机原生 Session；标题由插件在创建时保存（DSH 原生
-  Session 标题投影不在此接口中）。
 - 尚未实现成员撤销入口；Relay 当前也没有该 API。
 - 真实 Android 端联调仍需在手机端完成配对后验证。
 
@@ -80,7 +83,7 @@
 
 - Ed25519 私钥（PKCS#8）和公钥（原始 32 字节，base64）
 - `harness_id`、Relay 地址、注册令牌
-- 远程 Session 绑定（session id、user id、title）
+- 幂等回执（按用户与 `client_operation_id` 保存，24 小时或 500 条后清理）
 
 可用 `DSH_REMOTE_STATE` 覆盖路径，或用 `DSH_REMOTE_URL` /
 `DSH_REMOTE_REGISTRATION_TOKEN` 提供首次默认值。令牌和私钥不会通过状态 RPC

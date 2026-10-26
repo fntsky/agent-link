@@ -22,7 +22,6 @@ export function defaultState() {
     publicKey: '',
     createdAt: 0,
     registered: false,
-    remoteSessions: {},
     receipts: {},
   };
 }
@@ -41,7 +40,7 @@ function normalize(raw) {
   }
   if (!state.createdAt) state.createdAt = Date.now();
   state.registered = state.registered === true;
-  if (!state.remoteSessions || typeof state.remoteSessions !== 'object') state.remoteSessions = {};
+  delete state.remoteSessions;
   if (!state.receipts || typeof state.receipts !== 'object') state.receipts = {};
   return state;
 }
