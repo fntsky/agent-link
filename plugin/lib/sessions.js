@@ -572,6 +572,7 @@ export class SessionBridge {
 
       agent_send: async (payload, { principal }) => {
         this.#assertMode(payload.mode);
+        const timeout = timeoutSignal(30_000);
         try {
           await this.#controller().prompt({
             requestId: String(payload.message_id),
@@ -579,9 +580,11 @@ export class SessionBridge {
             mode: payload.mode === 2 ? 'steer' : 'queue',
             content: this.#mapContentToPrompt(payload.content),
             clientTimeZone: 'UTC',
-          });
+          }, timeout.signal);
         } catch (error) {
           throw this.#mapRemoteError(error);
+        } finally {
+          timeout.clear();
         }
         return { state: 1, inbox: { next_turn: [], next_step: [] } };
       },
@@ -624,7 +627,8 @@ export class SessionBridge {
         const live = this.#live(payload.session_id);
         const header = live?.session?.requestHeader?.();
         const config = header?.config || live?.options;
-        const fallback = this.ctx.agentDefaultModel?.currentSelection?.();
+        const modelService = typeof this.ctx.get === 'function' ? this.ctx.get('agentDefaultModel') : this.ctx.agentDefaultModel;
+        const fallback = modelService?.currentSelection?.();
         const selection = config || fallback;
         if (!selection) return { selection: { provider: '', model: '' } };
         return {

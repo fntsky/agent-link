@@ -59,7 +59,11 @@ function makeContext() {
         return { meta: { id: sessionId, createdAt: NOW, cwd: '/work/project-one' }, events };
       },
       async resolveAgent() { return { agent: { id: 's1' } }; },
-      async prompt(request) { this.lastPrompt = request; return { accepted: true }; },
+      async prompt(request, signal) {
+        if (!signal) throw new Error('prompt requires an AbortSignal');
+        this.lastPrompt = request;
+        return { accepted: true };
+      },
       cancel() { return { accepted: true }; },
       async selectModel(request) { return { selected: request }; },
       async modelCatalog() {
@@ -80,6 +84,7 @@ function makeContext() {
         })();
       },
     },
+    get(name) { return name === 'agentDefaultModel' ? this.agentDefaultModel : undefined; },
     agents: { get: () => ({ id: 's1', status: 'running', session: { requestHeader: () => ({ config: { provider: 'p', model: 'm' } }) } }) },
     agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },
   };
