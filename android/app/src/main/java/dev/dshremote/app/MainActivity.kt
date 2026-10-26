@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.ViewModelProvider
+import com.google.protobuf.Struct
+import com.google.protobuf.Value
 import dev.dshremote.core.*
 import dev.dshremote.protocol.*
 import kotlinx.coroutines.delay
@@ -276,9 +278,17 @@ private fun Chat(state: RemoteUi, vm: RemoteViewModel, cancel: () -> Unit, aband
             }
         }
         c.notice?.let { Banner(it) }
+        val rounds = remember(c.events) { buildRounds(c.events) }
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { TextButton(onClick = vm::older, enabled = active, modifier = Modifier.fillMaxWidth()) { Text("读取更早历史") } }
-            items(c.events, key = { "event:${it.sessionSeq}" }) { event -> EventCard(event) }
+            items(rounds, key = { "round:${it.key}" }) { round ->
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    round.user?.let { event ->
+                        MessageCard("你", event.userMessage.contentList.joinToString("\n") { it.displayText() }, true, foldable = true)
+                    }
+                    if (round.events.isNotEmpty()) RoundSection(round)
+                }
+            }
             items(c.live.values.toList(), key = { "live:${it.attempt}" }) { output ->
                 MessageCard("正在生成 · 暂未提交", output.blocks.joinToString("") { it.displayText() }.ifEmpty { "等待首个片段…" }, false, transient = true)
             }
@@ -310,17 +320,188 @@ private fun Chat(state: RemoteUi, vm: RemoteViewModel, cancel: () -> Unit, aband
     }
 }
 
+private data class ChatRound(
+    val key: String,
+    val user: SessionEvent?,
+    val events: List<SessionEvent>,
+    val isLast: Boolean = false,
+)
+
+/** Split the durable event stream into user-anchored rounds. Everything after
+ *  the last user message stays in the last round and is expanded by default. */
+private fun buildRounds(events: List<SessionEvent>): List<ChatRound> {
+    val rounds = mutableListOf<ChatRound>()
+    var user: SessionEvent? = null
+    val bucket = mutableListOf<SessionEvent>()
+    fun flush() {
+        if (user == null && bucket.isEmpty()) return
+        val meaningful = bucket.any {
+            it.hasToolCall() || it.hasToolResult() || it.hasAssistantMessage() ||
+                it.hasAssistantAttempt() || it.hasExtension()
+        }
+        if (user != null || meaningful) {
+            val first = user?.sessionSeq ?: bucket.firstOrNull()?.sessionSeq ?: 0
+            rounds += ChatRound("$first:${bucket.firstOrNull()?.sessionSeq ?: 0}", user, bucket.toList())
+        }
+        user = null
+        bucket.clear()
+    }
+    for (event in events) {
+        if (event.hasUserMessage()) {
+            flush()
+            user = event
+        } else {
+            bucket += event
+        }
+    }
+    flush()
+    return rounds.mapIndexed { index, round -> round.copy(isLast = index == rounds.lastIndex) }
+}
+
 @Composable
-private fun EventCard(event: SessionEvent) {
-    when (event.bodyCase) {
-        SessionEvent.BodyCase.USER_MESSAGE -> MessageCard("你", event.userMessage.contentList.joinToString("\n") { it.displayText() }, true, foldable = true)
-        SessionEvent.BodyCase.ASSISTANT_MESSAGE -> MessageCard("Harness", event.assistantMessage.contentList.joinToString("\n") { it.displayText() }, false, foldable = true)
-        SessionEvent.BodyCase.ASSISTANT_ATTEMPT -> MessageCard("尝试 · ${event.assistantAttempt.outcome}", event.assistantAttempt.contentList.joinToString("\n") { it.displayText() }, false, foldable = true)
-        SessionEvent.BodyCase.TOOL_CALL -> MessageCard("工具 · ${event.toolCall.toolName}", "调用 ${event.toolCall.callId}\n${event.toolCall.arguments}", false, foldable = true, collapseByDefault = true)
-        SessionEvent.BodyCase.TOOL_RESULT -> MessageCard("工具结果", event.toolResult.contentList.joinToString("\n") { it.displayText() }, false, foldable = true, collapseByDefault = true)
-        else -> Text("${event.eventType} · #${event.sessionSeq}" + if (event.hasLifecycle() && event.lifecycle.outcome.isNotEmpty()) " · ${event.lifecycle.outcome}" else "", Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun RoundSection(round: ChatRound) {
+    var open by remember(round.key) { mutableStateOf(round.isLast) }
+    LaunchedEffect(round.isLast) { if (!round.isLast) open = false }
+    val tools = round.events.count { it.hasToolCall() }
+    val completed = round.events.any { it.eventType == "turn/end" } || round.events.any { it.hasAssistantMessage() }
+    val times = round.events.mapNotNull { event ->
+        if (!event.hasCommittedAt()) null else event.committedAt.seconds * 1000 + event.committedAt.nanos / 1_000_000
+    }
+    val duration = if (times.size > 1) ((times.maxOrNull() ?: 0) - (times.minOrNull() ?: 0)) / 1000 else 0
+    val label = when {
+        completed && duration > 0 -> "已完成 · 用时 ${formatDuration(duration)}"
+        completed -> "已完成"
+        round.isLast -> "执行中"
+        else -> "执行过程"
+    }
+    val results = round.events.filter { it.hasToolResult() }.associateBy { it.toolResult.callId }
+    Column(Modifier.fillMaxWidth()) {
+        Surface(
+            Modifier.fillMaxWidth().clickable { open = !open },
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        ) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(if (completed) Icons.Default.CheckCircle else Icons.Default.HourglassEmpty, null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(10.dp))
+                Text(label, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                if (tools > 0) Text("$tools 步", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(6.dp))
+                Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (open) "收起本轮" else "展开本轮")
+            }
+        }
+        if (open) {
+            Column(Modifier.padding(start = 10.dp, top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (event in round.events) {
+                    when {
+                        event.hasToolCall() -> ToolRow(event, results[event.toolCall.callId])
+                        event.hasAssistantMessage() -> {
+                            val blocks = event.assistantMessage.contentList
+                            blocks.filter { it.valueCase == ContentBlock.ValueCase.REASONING }.forEach { ReasoningRow(it.reasoning) }
+                            val final = blocks.filter { it.valueCase != ContentBlock.ValueCase.REASONING }
+                            if (final.isNotEmpty()) MessageCard("Harness", final.joinToString("\n") { it.displayText() }, false, foldable = true)
+                        }
+                        event.hasAssistantAttempt() -> {
+                            val final = event.assistantAttempt.contentList
+                            if (final.isNotEmpty()) MessageCard("尝试 · ${event.assistantAttempt.outcome}", final.joinToString("\n") { it.displayText() }, false, foldable = true)
+                        }
+                        event.hasExtension() -> Text("${event.extension.namespace}/${event.extension.eventType} · #${event.sessionSeq}", Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
     }
 }
+
+@Composable
+private fun ReasoningRow(text: String) {
+    var open by remember(text) { mutableStateOf(false) }
+    val preview = text.lineSequence().firstOrNull()?.trim().orEmpty().ifBlank { "思考内容" }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+        Row(Modifier.fillMaxWidth().clickable { open = !open }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Lightbulb, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("思考", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
+            Spacer(Modifier.width(8.dp))
+            Text(preview, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (open) "收起思考" else "展开思考")
+        }
+        if (open) SelectionContainer { Text(text, Modifier.padding(start = 24.dp, top = 2.dp, bottom = 6.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    }
+}
+
+@Composable
+private fun ToolRow(call: SessionEvent, result: SessionEvent?) {
+    var open by remember(call.sessionSeq) { mutableStateOf(false) }
+    val tool = call.toolCall
+    val summary = toolSummary(tool.arguments)
+    val title = toolTitle(tool.toolName)
+    val output = result?.toolResult?.contentList?.joinToString("\n") { it.displayText() }?.ifBlank { "（无输出）" }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+        Row(Modifier.fillMaxWidth().clickable { open = !open }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Terminal, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(title, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.width(8.dp))
+            Text(summary, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (open) "收起工具详情" else "展开工具详情")
+        }
+        if (open) {
+            Surface(Modifier.fillMaxWidth().padding(start = 24.dp, top = 2.dp, bottom = 6.dp), shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("调用 ${tool.callId}", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    SelectionContainer { Text(structText(tool.arguments), style = MaterialTheme.typography.bodySmall) }
+                    if (output != null) {
+                        Text(if (result?.toolResult?.isError == true) "错误输出" else "输出", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        SelectionContainer { Text(output, style = MaterialTheme.typography.bodySmall) }
+                    } else {
+                        Text("运行中…", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun toolTitle(name: String): String = when (name) {
+    "bash", "terminal" -> "运行命令"
+    "grep" -> "搜索文件内容"
+    "glob" -> "查找文件"
+    "read" -> "读取文件"
+    "write" -> "写入文件"
+    "edit" -> "编辑文件"
+    "web_search" -> "网页搜索"
+    "web_fetch" -> "网页获取"
+    "apply_patch" -> "修改文件"
+    else -> name.ifBlank { "工具" }
+}
+
+private fun toolSummary(args: Struct): String {
+    val fields = args.fieldsMap
+    for (key in listOf("cmd", "command", "query", "pattern", "path", "file_path", "url")) {
+        val value = fields[key] ?: continue
+        val text = valueText(value)
+        if (text.isNotBlank()) return text.replace('\n', ' ').take(120)
+    }
+    return fields.entries.firstOrNull()?.let { "${it.key}: ${valueText(it.value)}" }?.take(120).orEmpty()
+}
+
+private fun structText(args: Struct): String {
+    if (args.fieldsMap.isEmpty()) return "（无参数）"
+    return args.fieldsMap.entries.joinToString("\n") { "${it.key}: ${valueText(it.value)}" }
+}
+
+private fun valueText(value: Value): String = when (value.kindCase) {
+    Value.KindCase.STRING_VALUE -> value.stringValue
+    Value.KindCase.NUMBER_VALUE -> value.numberValue.toString()
+    Value.KindCase.BOOL_VALUE -> value.boolValue.toString()
+    Value.KindCase.NULL_VALUE -> "null"
+    Value.KindCase.STRUCT_VALUE -> structText(value.structValue)
+    Value.KindCase.LIST_VALUE -> value.listValue.valuesList.joinToString(", ") { valueText(it) }
+    else -> ""
+}
+
+private fun formatDuration(seconds: Long): String = if (seconds >= 60) "${seconds / 60} 分 ${seconds % 60} 秒" else "${seconds} 秒"
 
 @Composable
 private fun MessageCard(label: String, content: String, user: Boolean, transient: Boolean = false, foldable: Boolean = false, collapseByDefault: Boolean = false) {
