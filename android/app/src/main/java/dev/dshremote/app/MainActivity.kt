@@ -313,21 +313,34 @@ private fun Chat(state: RemoteUi, vm: RemoteViewModel, cancel: () -> Unit, aband
 @Composable
 private fun EventCard(event: SessionEvent) {
     when (event.bodyCase) {
-        SessionEvent.BodyCase.USER_MESSAGE -> MessageCard("你", event.userMessage.contentList.joinToString("\n") { it.displayText() }, true)
-        SessionEvent.BodyCase.ASSISTANT_MESSAGE -> MessageCard("Harness", event.assistantMessage.contentList.joinToString("\n") { it.displayText() }, false)
-        SessionEvent.BodyCase.ASSISTANT_ATTEMPT -> MessageCard("尝试 · ${event.assistantAttempt.outcome}", event.assistantAttempt.contentList.joinToString("\n") { it.displayText() }, false)
-        SessionEvent.BodyCase.TOOL_CALL -> MessageCard("工具 · ${event.toolCall.toolName}", "调用 ${event.toolCall.callId}\n${event.toolCall.arguments}", false)
-        SessionEvent.BodyCase.TOOL_RESULT -> MessageCard("工具结果", event.toolResult.contentList.joinToString("\n") { it.displayText() }, false)
+        SessionEvent.BodyCase.USER_MESSAGE -> MessageCard("你", event.userMessage.contentList.joinToString("\n") { it.displayText() }, true, foldable = true)
+        SessionEvent.BodyCase.ASSISTANT_MESSAGE -> MessageCard("Harness", event.assistantMessage.contentList.joinToString("\n") { it.displayText() }, false, foldable = true)
+        SessionEvent.BodyCase.ASSISTANT_ATTEMPT -> MessageCard("尝试 · ${event.assistantAttempt.outcome}", event.assistantAttempt.contentList.joinToString("\n") { it.displayText() }, false, foldable = true)
+        SessionEvent.BodyCase.TOOL_CALL -> MessageCard("工具 · ${event.toolCall.toolName}", "调用 ${event.toolCall.callId}\n${event.toolCall.arguments}", false, foldable = true, collapseByDefault = true)
+        SessionEvent.BodyCase.TOOL_RESULT -> MessageCard("工具结果", event.toolResult.contentList.joinToString("\n") { it.displayText() }, false, foldable = true, collapseByDefault = true)
         else -> Text("${event.eventType} · #${event.sessionSeq}" + if (event.hasLifecycle() && event.lifecycle.outcome.isNotEmpty()) " · ${event.lifecycle.outcome}" else "", Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-private fun MessageCard(label: String, content: String, user: Boolean, transient: Boolean = false) {
+private fun MessageCard(label: String, content: String, user: Boolean, transient: Boolean = false, foldable: Boolean = false, collapseByDefault: Boolean = false) {
+    var expanded by remember(label, content) { mutableStateOf(!collapseByDefault) }
+    val lineCount = content.count { it == '\n' } + 1
+    val overflows = content.length > 520 || lineCount > 8
+    val canFold = foldable && (overflows || collapseByDefault)
+    val shown = when {
+        content.isEmpty() -> "（无可显示内容）"
+        !canFold || expanded -> content
+        collapseByDefault -> content.lineSequence().firstOrNull()?.take(180).orEmpty().ifBlank { "（无摘要）" }
+        else -> content.take(520).trimEnd() + "…"
+    }
     Column(Modifier.fillMaxWidth(), horizontalAlignment = if (user) Alignment.End else Alignment.Start) {
         Text(label, Modifier.padding(horizontal = 4.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Surface(Modifier.fillMaxWidth(if (user) 0.9f else 1f), shape = RoundedCornerShape(18.dp), color = if (user) MaterialTheme.colorScheme.primaryContainer else if (transient) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface) {
-            SelectionContainer { Text(content.ifEmpty { "（无可显示内容）" }, Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium, lineHeight = 23.sp) }
+            SelectionContainer { Text(shown, Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium, lineHeight = 23.sp) }
+        }
+        if (canFold) {
+            TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "收起" else if (collapseByDefault) "展开详情" else "展开全文") }
         }
     }
 }
