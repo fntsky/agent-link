@@ -409,7 +409,7 @@ private fun RoundSection(round: ChatRound) {
                                 ToolRow(tool.callId, tool.toolName, tool.arguments, results[tool.callId])
                             }
                             val final = blocks.filter { it.valueCase != ContentBlock.ValueCase.REASONING && it.valueCase != ContentBlock.ValueCase.TOOL_CALL }
-                            if (final.isNotEmpty()) MessageCard("Harness", final.joinToString("\n") { it.displayText() }, false, foldable = true)
+                            if (final.isNotEmpty()) MessageCard("Harness", final.joinToString("\n") { it.displayText() }, false, foldable = false)
                         }
                         event.hasAssistantAttempt() -> {
                             val final = event.assistantAttempt.contentList
