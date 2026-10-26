@@ -4,7 +4,7 @@
  * package-private settings RPC consumed by the Client half.
  */
 import { AdapterError, RelayHarness } from './lib/adapter.js';
-import { loadState, statePath } from './lib/identity.js';
+import { loadState, saveState, statePath } from './lib/identity.js';
 import { SessionBridge } from './lib/sessions.js';
 
 export const name = 'dsh-remote';
@@ -121,6 +121,7 @@ function settingsRoute(connection, dispatch) {
 export async function apply(ctx) {
   const logger = ctx.logger ?? console;
   const state = await loadState();
+  await saveState(state);
   const adapter = new RelayHarness({ state, logger, handlers: {} });
   const bridge = new SessionBridge({ ctx, adapter, state, logger });
   adapter.handlers = bridge.handlers;
