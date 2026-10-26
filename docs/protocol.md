@@ -56,7 +56,9 @@
   Harness 的成员，包括 owner。Relay 在同一事务中删除成员、提升 ACL 版本，并返回
   `MemberRevokeResponse{acl_version, removed}`；随后关闭该设备的 Relay 连接、通知
   Harness 清理 connection 作用域，并推送新的 MembershipSnapshot。相同操作 ID 重试
-  返回原回执，不重复提升版本。移除最后一个 owner 后，允许重新创建 owner 配对码。
+  返回原回执，不重复提升版本。移除最后一个 owner 后，允许重新创建 owner 配对码；
+  若被撤销设备已不属于任何 Harness，Relay 同时删除其设备身份，因此同一台手机可以
+  用新的配对码重新加入。
 
 ## 幂等、Session 与 Inbox
 

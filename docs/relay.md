@@ -58,8 +58,9 @@ Relay 不缓存 Session 正文或审批 token。
 ## 当前实现边界
 
 成员撤销已实现：Harness 可移除任一成员（含 owner），Relay 同事务提升 ACL 版本、
-关闭该设备连接并重发 membership.snapshot；该设备的后续业务请求返回 FORBIDDEN。
-Harness 收到 RelayConnectionClosed 后清理该 connection 的订阅与临时审批状态。
+关闭该设备连接并重发 membership.snapshot；若设备已无其他成员关系，同时删除设备
+身份，允许同一台手机重新配对。Harness 收到 RelayConnectionClosed 后清理该 connection
+的订阅与临时审批状态。
 
 HarnessStatus.adapter_version 暂为空；实际 Adapter 能力通过 capabilities.get 透传查询。
 未绑定用户不能查询 HarnessStatus。现有 Harness 重复上线返回 AGENT_BUSY，避免隐式
