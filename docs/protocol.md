@@ -45,9 +45,13 @@
 - MembershipSnapshot 为 Harness 的完整成员快照，版本单调递增；Harness 原子应用
   后才回 applied_acl_version。旧版本不能回退权限，同版本内容不同必须拒绝。
   未同步最新版本时拒绝业务请求 ACL_NOT_SYNCED；撤权立即关闭相关订阅及审批凭证。
-- Harness 另行持久化 Session ACL，分别检查 read/write/cancel/approve/model/policy/inject。
-  owner 成员角色不能替代具体 Session 检查。已有本地 Session 默认不对远端开放，
-  认领/共享/导入接口不在本版范围，未实现操作返回 UNSUPPORTED_OPERATION。
+- 本地 Session 完全开放：SessionList 与本地工作区使用同一份目录，已认证成员可以看到
+  并读取工作区中的全部 Session，也可执行协议支持的发送、取消、模型选择等操作。
+  不设 Adapter 专属 Session、创建者绑定或导入/认领步骤；远程创建的 Session 就是普通
+  本地 Session，也会立即出现在工作区。
+- 成员 ACL 仍是唯一边界：未认证连接、已撤销成员和 ACL 未同步的连接不能读 Session。
+  审批仍要求当前连接正在订阅该 Session，并使用绑定该连接与审批的 decision token；
+  这与 Session 可见性无关，不能借“完全开放”绕过。
 
 ## 幂等、Session 与 Inbox
 
@@ -55,8 +59,8 @@
   Harness 将用户、操作 ID、operation 与规范化请求摘要持久保存，副作用和幂等记录须
   具备崩溃一致性。同用户同 ID 同内容返回原结果；不同内容返回 IDEMPOTENCY_CONFLICT。
   配对类 Mutation 由 Relay 持久处理。审批的幂等回执不能再次触发审批副作用。
-- SessionCreate 建立 Session、ACL 与 Agent；AgentCreateOrResume 仅恢复已有授权
-  Session，不以任意 session_id 创建未授权会话。SessionOpen 默认不恢复 Agent。
+- SessionCreate 建立普通原生 Session 与 Agent，并立即进入本地工作区目录；
+  AgentCreateOrResume 仅恢复已有 Session，不以任意 session_id 创建新会话。SessionOpen 默认不恢复 Agent。
   AgentSend 遇 unloaded 返回 AGENT_NOT_LOADED，由调用方明确请求恢复。
 - AgentSend 的 message_id 标识 Inbox 消息，来源由可信 principal 派生。
   followup 下一 turn；steer 最近可用 step，空闲时可唤醒；inject 不唤醒且默认仅可信 owner。

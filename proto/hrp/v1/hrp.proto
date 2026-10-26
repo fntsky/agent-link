@@ -45,6 +45,10 @@ message ModelSelection { string provider = 1; string model = 2; optional string 
 enum AgentState { AGENT_STATE_UNSPECIFIED = 0; AGENT_STATE_IDLE = 1; AGENT_STATE_RUNNING = 2; AGENT_STATE_UNLOADED = 3; }
 message AgentRef { string session_id = 1; optional string agent_id = 2; AgentState state = 3; }
 message ForkPoint { string session_id = 1; uint64 session_seq = 2; }
+// SessionList and SessionSummary expose the Harness native workspace directory.
+// There is no adapter-owned Session directory: every authenticated member sees
+// the same Sessions the local workspace shows, and SessionCreate creates a
+// normal native Session that also appears there.
 message SessionSummary {
   string session_id = 1;
   string title = 2;

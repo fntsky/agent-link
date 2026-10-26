@@ -8,7 +8,8 @@ HRP v1.1 是设计文档修订号，wire major 仍为 1。
 
 Relay 负责 Ed25519 挑战认证、owner/device_link/invite 配对、成员 ACL 同步、
 RPC 路由和连接级订阅隔离。SQLite 只保存身份、公钥、成员、短期配对与配对幂等记录。
-会话历史、Session ACL、Inbox、工具审批执行及业务幂等由 Harness 负责。
+会话历史、Session 目录与操作权限、Inbox、工具审批执行及业务幂等由 Harness 负责；
+Session 目录与本地工作区一致，不设置 Adapter 专属会话。
 
 ## 直接运行已编译版本
 

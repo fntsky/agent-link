@@ -206,11 +206,12 @@ async def run(server):
         guest = await phone()
         invited = await guest.redeem(invite.pairing_code)
         assert invited.user_id != paired.user_id
-        assert not (await ready(guest)).sessions
-        for op, value in [("session_snapshot", pb.SessionSnapshotRequest(session_id=session)), ("agent_cancel", pb.AgentCancelRequest(session_id=session, mutation=pb.Mutation(client_operation_id=uid())))]:
-            await expect_error(pb.ERROR_CODE_SESSION_NOT_FOUND, guest.call(op, value))
+        guest_directory = await ready(guest)
+        assert [s.session_id for s in guest_directory.sessions] == [session]
+        guest_snapshot = await guest.call("session_snapshot", pb.SessionSnapshotRequest(session_id=session))
+        assert guest_snapshot.baseline.cursor == len(harness.sessions[session]["events"])
         await expect_error(pb.ERROR_CODE_FORBIDDEN, guest.call("pair_create", pb.PairCreateRequest(mutation=pb.Mutation(client_operation_id=uid()), harness_id=harness.identity, mode=3)))
-        passed("invite creates isolated user; Session ACL and owner-only invitation enforced")
+        passed("workspace Session directory is shared with every member; owner-only invitation enforced")
 
         await owner.send_message(session, "approval")
         approval = await owner.event("approval_request")
