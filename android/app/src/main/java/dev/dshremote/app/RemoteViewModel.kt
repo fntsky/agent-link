@@ -159,14 +159,21 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     fun closePairing() { _ui.update { it.copy(pairing = null) } }
     override fun onCleared() { client.close() }
     private fun readable(error: Exception): String = when (error) {
-        is RelayException -> when (error.code) {
-            ErrorCode.ERROR_CODE_HARNESS_OFFLINE -> "Harness 离线，请稍后重试"
-            ErrorCode.ERROR_CODE_UNAUTHENTICATED -> "身份验证失败，请检查设备是否已配对"
-            ErrorCode.ERROR_CODE_FORBIDDEN -> "当前身份没有此操作权限"
-            ErrorCode.ERROR_CODE_AGENT_NOT_LOADED -> "Agent 未加载，请先恢复 Agent，再重试消息"
-            ErrorCode.ERROR_CODE_UNSUPPORTED_OPERATION -> "Harness 暂不支持这项操作"
-            ErrorCode.ERROR_CODE_ACL_NOT_SYNCED -> "成员权限正在同步，请稍后重试"
-            else -> "操作失败：${error.code.name.removePrefix("ERROR_CODE_")}"
+        is RelayException -> {
+            val detail = error.message?.takeIf { it.isNotBlank() && it != error.code.name }
+            when (error.code) {
+                ErrorCode.ERROR_CODE_HARNESS_OFFLINE -> "Harness 离线，请稍后重试"
+                ErrorCode.ERROR_CODE_UNAUTHENTICATED -> "身份验证失败，请检查设备是否已配对"
+                ErrorCode.ERROR_CODE_FORBIDDEN -> "当前身份没有此操作权限"
+                ErrorCode.ERROR_CODE_MEMBER_NOT_FOUND -> "设备已不在成员列表中"
+                ErrorCode.ERROR_CODE_AGENT_NOT_LOADED -> "Agent 未加载，请先恢复 Agent，再重试消息"
+                ErrorCode.ERROR_CODE_AGENT_BUSY -> detail ?: "Agent 正忙，请稍后重试"
+                ErrorCode.ERROR_CODE_UNSUPPORTED_OPERATION -> "Harness 暂不支持这项操作"
+                ErrorCode.ERROR_CODE_ACL_NOT_SYNCED -> "成员权限正在同步，请稍后重试"
+                ErrorCode.ERROR_CODE_INTERNAL -> detail ?: "Harness 内部错误"
+                ErrorCode.ERROR_CODE_INVALID_ARGUMENT -> detail ?: "请求参数无效"
+                else -> "操作失败：${error.code.name.removePrefix("ERROR_CODE_")}" + (detail?.let { "：$it" } ?: "")
+            }
         }
         is kotlinx.coroutines.TimeoutCancellationException -> "请求超时，结果尚未确认；重试将沿用原操作编号"
         else -> error.message ?: "操作失败，请重试"

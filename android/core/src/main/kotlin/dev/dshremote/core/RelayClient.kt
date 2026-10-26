@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
-class RelayException(val code: ErrorCode) : IOException(code.name)
+class RelayException(val code: ErrorCode, message: String = code.name) : IOException(message)
 data class Link(val connected: Boolean = false, val message: String = "未连接")
 
 /** Native client transport; no history reads or subscriptions occur during authentication. */
@@ -60,7 +60,7 @@ class RelayClient(private val identity: DeviceIdentity) {
                         if (env.hasReplyTo()) {
                             val p = pending.remove(env.replyTo) ?: return
                             when (env.bodyCase) {
-                                Envelope.BodyCase.ERROR -> p.result.completeExceptionally(RelayException(env.error.code))
+                                Envelope.BodyCase.ERROR -> p.result.completeExceptionally(RelayException(env.error.code, env.error.message.ifBlank { env.error.code.name }))
                                 Envelope.BodyCase.RESPONSE -> {
                                     if (env.response.operationCase.number != p.expected) p.result.completeExceptionally(IOException("响应类型与请求不匹配"))
                                     else {

@@ -1,7 +1,6 @@
 package dev.dshremote.app
 
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -47,8 +46,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // Pairing credentials, tool arguments and chats stay out of screenshots/recents.
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // Screenshots and the recents preview are intentionally allowed.
         try {
             remote = ViewModelProvider(this)[RemoteViewModel::class.java]
         } catch (_: Exception) {
