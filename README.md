@@ -13,11 +13,12 @@ RPC 路由和连接级订阅隔离。SQLite 只保存身份、公钥、成员、
 ## 直接运行已编译版本
 
 仓库像 rs_blog 一样提交 `dist/dsh-remote`，当前为 Linux x86_64 可执行文件。
-首次启动需要设置 Harness 注册令牌，数据默认保存到 `data/`：
+首次启动自动生成 Harness 注册令牌，数据默认保存到 `data/`：
 
 ```sh
-export HRP_REGISTRATION_TOKEN="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
 HRP_LISTEN=0.0.0.0:53214 ./start.sh
+# 查看 Harness 要填写的注册令牌：
+cat data/relay-registration-token
 ```
 
 默认仍监听 `127.0.0.1:53214`；独立局域网访问时如上覆盖为 `0.0.0.0`。
@@ -57,10 +58,15 @@ Relay 本身不依赖 Formicary 登录会话，不把 `X-Formicary-*` 当作 HRP
 ## Chamber
 
 [chamber.toml](chamber.toml) 定义代理、健康检查；[启动脚本](start.sh)
-以前台进程运行 release 二进制。将 `HRP_REGISTRATION_TOKEN` 设置在 Formicary 的启动环境。
+以前台进程运行 release 二进制。默认由 TOML 的启动命令指定令牌文件；首次自动生成，重启复用。
 部署使用已提交的二进制，无需构建工具。
 
 - 无 prepare 构建步骤，直接运行 `dist/dsh-remote`。
+- 默认令牌文件：`${CHAMBER_DATA_DIR}/relay-registration-token`，权限为 0600。
+  可在服务器读取这个文件，将其值填给 Harness；手机只填写一次性配对码。
+- 在本机 `chamber.toml` 的 `script` 中写 `HRP_REGISTRATION_TOKEN="自定义长令牌" ./start.sh`
+  可以显式指定，优先于文件。实际令牌不能提交到公开仓库。
+  修改配置后重启 Chamber；令牌文件和数据库都位于共享数据目录，升级不会清空。
 - upstream：`http://127.0.0.1:53214`，健康路径 `/healthz`。
 - 外部路由：`/dsh-remote`，例如 `wss://<host>/dsh-remote/ws/mobile`。
 - 数据库：`${CHAMBER_DATA_DIR}/relay.sqlite3`；未设时退回 `./data/relay.sqlite3`。
