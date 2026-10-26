@@ -18,7 +18,7 @@
 | 成员管理 | 设置页列出已配对设备，可移除任意成员（含 owner）；移除后设备立即失去访问权限 |
 | 设置页 | `settings.plugins.tab`：远程地址、显示名称、注册令牌、连接状态、设备列表 |
 | 状态查询 | `harness.status` 由 Relay 处理；插件状态 RPC 只对已认证浏览器开放 |
-| Session | `session.list/create/open/snapshot/page/follow/unfollow`；目录与本地工作区一致，不做插件专属过滤 |
+| Session | `session.list/create/open/snapshot/page/follow/unfollow`；目录与本地工作区一致，不做插件专属过滤；`SessionSummary.workspace` 提供原生工作区路径供手机分组 |
 | Agent | `agent.send/cancel/status/inbox_get/create_or_resume` |
 | 实时流 | `session_committed`、`assistant_live_start/chunk/end` |
 | 模型 | `model.current/list/select` |

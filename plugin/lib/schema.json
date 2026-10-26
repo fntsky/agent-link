@@ -409,6 +409,13 @@
      "type": "message",
      "label": "optional",
      "typeName": "google.protobuf.Timestamp"
+    },
+    {
+     "name": "workspace",
+     "number": 10,
+     "type": "string",
+     "label": "optional",
+     "optional": true
     }
    ],
    "oneofs": {
@@ -417,6 +424,9 @@
     ],
     "_agent_id": [
      "agent_id"
+    ],
+    "_workspace": [
+     "workspace"
     ]
    }
   },

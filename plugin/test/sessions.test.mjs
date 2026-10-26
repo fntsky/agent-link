@@ -113,6 +113,7 @@ test('session list/create/open/snapshot/page produce valid HRP messages', async 
   encode('hrp.v1.SessionListResponse', list);
   assert.equal(list.sessions.length, 2);
   assert.deepEqual(list.sessions.map((session) => session.title).sort(), ['Local Project', 'Project One']);
+  assert.equal(list.sessions.find((session) => session.session_id === 's1').workspace, '/work/project-one');
 
   const firstPage = await adapter.handlers.session_list({ page_size: 1 }, { principal });
   assert.equal(firstPage.sessions.length, 1);

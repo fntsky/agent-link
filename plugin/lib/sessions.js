@@ -288,7 +288,7 @@ export class SessionBridge {
     return this.ctx.agents?.get?.(sessionId);
   }
 
-  #summary(sessionId, cursor, updatedAt, title) {
+  #summary(sessionId, cursor, updatedAt, title, workspace = '') {
     const live = this.#live(sessionId);
     return {
       session_id: sessionId,
@@ -296,14 +296,15 @@ export class SessionBridge {
       committed_seq: Number(cursor || 0),
       agent_state: agentState(live),
       updated_at: timestamp(updatedAt || Date.now()),
+      workspace: workspace || '',
     };
   }
 
-  #baseline(sessionId, events, cursor, tailLimit = 50, fallbackTitle = '') {
+  #baseline(sessionId, events, cursor, tailLimit = 50, fallbackTitle = '', workspace = '') {
     const seq = Number(cursor || 0);
     const title = titleFromEvents(events) || fallbackTitle || String(sessionId);
     return {
-      session: this.#summary(sessionId, seq, events[events.length - 1]?.time, title),
+      session: this.#summary(sessionId, seq, events[events.length - 1]?.time, title, workspace),
       cursor: seq,
       projection: {
         schema_version: 1,
@@ -426,7 +427,7 @@ export class SessionBridge {
         const page = items.slice(offset, offset + size);
         const sessions = page.map((row) => {
           const sessionId = String(row.sessionId);
-          return this.#summary(sessionId, row.projections?.asOfSeq, row.updatedAt, displayTitle(row));
+          return this.#summary(sessionId, row.projections?.asOfSeq, row.updatedAt, displayTitle(row), row.cwd || '');
         });
         const hasMore = offset + page.length < items.length;
         return {
@@ -450,15 +451,17 @@ export class SessionBridge {
           }
         }
         let events = [];
+        let workspace = '';
         try {
           const inspection = await this.#inspect(sessionId);
           events = inspection.events || [];
+          workspace = inspection.meta?.cwd || '';
         } catch {
           // A just-created Session can briefly be absent from the cold reader.
         }
         const cursor = events[events.length - 1]?.seq || 0;
         return {
-          baseline: this.#baseline(sessionId, events, cursor, 50, appliedTitle),
+          baseline: this.#baseline(sessionId, events, cursor, 50, appliedTitle, workspace),
           agent: { session_id: sessionId, agent_id: sessionId, state: agentState(this.#live(sessionId)) },
         };
       },
@@ -475,7 +478,7 @@ export class SessionBridge {
         const events = inspection.events || [];
         const cursor = events[events.length - 1]?.seq || 0;
         return {
-          baseline: this.#baseline(payload.session_id, events, cursor, 50, basename(inspection.meta?.cwd)),
+          baseline: this.#baseline(payload.session_id, events, cursor, 50, basename(inspection.meta?.cwd), inspection.meta?.cwd || ''),
           agent: { session_id: payload.session_id, agent_id: payload.session_id, state: agentState(this.#live(payload.session_id)) },
         };
       },
@@ -484,7 +487,7 @@ export class SessionBridge {
         const inspection = await this.#inspect(payload.session_id);
         const events = inspection.events || [];
         const cursor = events[events.length - 1]?.seq || 0;
-        return { baseline: this.#baseline(payload.session_id, events, cursor, payload.tail_limit, basename(inspection.meta?.cwd)) };
+        return { baseline: this.#baseline(payload.session_id, events, cursor, payload.tail_limit, basename(inspection.meta?.cwd), inspection.meta?.cwd || '') };
       },
 
       session_page: async (payload) => {
@@ -537,7 +540,8 @@ export class SessionBridge {
         const records = snapshot.records || [];
         const events = records.filter((record) => record.type === 'event').map((record) => record.event);
         const cursor = Number(snapshot.cursor || events[events.length - 1]?.seq || 0);
-        const baseline = this.#baseline(payload.session_id, events, cursor, payload.tail_limit);
+        const workspace = snapshot.header?.cwd || '';
+        const baseline = this.#baseline(payload.session_id, events, cursor, payload.tail_limit, basename(workspace), workspace);
         const active = snapshot.assistantStream?.activeAttempt;
         if (active) {
           baseline.active_attempts = [{
