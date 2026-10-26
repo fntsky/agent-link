@@ -283,7 +283,10 @@ private fun Chat(state: RemoteUi, vm: RemoteViewModel, cancel: () -> Unit, aband
                     round.user?.let { event ->
                         MessageCard("你", event.userMessage.contentList.joinToString("\n") { it.displayText() }, true, foldable = true)
                     }
-                    if (round.events.isNotEmpty()) RoundSection(round)
+                    if (roundHasProcess(round)) RoundSection(round)
+                    finalAssistantText(round)?.let { text ->
+                        MessageCard("Harness", text, false, foldable = false)
+                    }
                 }
             }
             items(c.live.values.toList(), key = { "live:${it.attempt}" }) { output ->
@@ -333,8 +336,7 @@ private fun buildRounds(events: List<SessionEvent>): List<ChatRound> {
     fun flush() {
         if (user == null && bucket.isEmpty()) return
         val meaningful = bucket.any {
-            it.hasToolCall() || it.hasToolResult() || it.hasAssistantMessage() ||
-                it.hasAssistantAttempt() || it.hasExtension()
+            it.hasToolCall() || it.hasToolResult() || it.hasAssistantMessage()
         }
         if (user != null || meaningful) {
             val first = user?.sessionSeq ?: bucket.firstOrNull()?.sessionSeq ?: 0
@@ -355,11 +357,33 @@ private fun buildRounds(events: List<SessionEvent>): List<ChatRound> {
     return rounds.mapIndexed { index, round -> round.copy(isLast = index == rounds.lastIndex) }
 }
 
+private fun reasoningBlocks(event: SessionEvent): List<ContentBlock> = if (event.hasAssistantMessage()) {
+    event.assistantMessage.contentList.filter { it.valueCase == ContentBlock.ValueCase.REASONING }
+} else emptyList()
+
+private fun embeddedToolBlocks(event: SessionEvent): List<ContentBlock> = if (event.hasAssistantMessage()) {
+    event.assistantMessage.contentList.filter { it.valueCase == ContentBlock.ValueCase.TOOL_CALL }
+} else emptyList()
+
+private fun roundHasProcess(round: ChatRound): Boolean = round.events.any { event ->
+    event.hasToolCall() || event.hasToolResult() || reasoningBlocks(event).isNotEmpty() || embeddedToolBlocks(event).isNotEmpty()
+}
+
+/** The final assistant answer is deliberately rendered outside the foldable
+ *  process section: collapsing a round must never hide the answer itself. */
+private fun finalAssistantText(round: ChatRound): String? {
+    val message = round.events.lastOrNull { it.hasAssistantMessage() } ?: return null
+    val text = message.assistantMessage.contentList
+        .filter { it.valueCase != ContentBlock.ValueCase.REASONING && it.valueCase != ContentBlock.ValueCase.TOOL_CALL }
+        .joinToString("\n") { it.displayText() }
+    return text.ifBlank { null }
+}
+
 @Composable
 private fun RoundSection(round: ChatRound) {
     var open by remember(round.key) { mutableStateOf(round.isLast) }
     LaunchedEffect(round.isLast) { if (!round.isLast) open = false }
-    val tools = round.events.count { it.hasToolCall() }
+    val tools = round.events.count { it.hasToolCall() } + round.events.sumOf { embeddedToolBlocks(it).size }
     val completed = round.events.any { it.eventType == "turn/end" } || round.events.any { it.hasAssistantMessage() }
     val times = round.events.mapNotNull { event ->
         if (!event.hasCommittedAt()) null else event.committedAt.seconds * 1000 + event.committedAt.nanos / 1_000_000
@@ -398,20 +422,14 @@ private fun RoundSection(round: ChatRound) {
                             results[event.toolCall.callId],
                         )
                         event.hasAssistantMessage() -> {
-                            val blocks = event.assistantMessage.contentList
-                            blocks.filter { it.valueCase == ContentBlock.ValueCase.REASONING }.forEach { ReasoningRow(it.reasoning) }
-                            blocks.filter { it.valueCase == ContentBlock.ValueCase.TOOL_CALL }.forEach { block ->
+                            reasoningBlocks(event).forEach { block -> ReasoningRow(block.reasoning) }
+                            embeddedToolBlocks(event).forEach { block ->
                                 val tool = block.toolCall
                                 ToolRow(tool.callId, tool.toolName, tool.arguments, results[tool.callId])
                             }
-                            val final = blocks.filter { it.valueCase != ContentBlock.ValueCase.REASONING && it.valueCase != ContentBlock.ValueCase.TOOL_CALL }
-                            if (final.isNotEmpty()) MessageCard("Harness", final.joinToString("\n") { it.displayText() }, false, foldable = false)
                         }
-                        event.hasAssistantAttempt() -> {
-                            val final = event.assistantAttempt.contentList
-                            if (final.isNotEmpty()) MessageCard("尝试 · ${event.assistantAttempt.outcome}", final.joinToString("\n") { it.displayText() }, false, foldable = true)
-                        }
-                        event.hasExtension() -> Text("${event.extension.namespace}/${event.extension.eventType} · #${event.sessionSeq}", Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        // Lifecycle and plugin extension events (job/*,
+                        // compaction/*, ...) stay out of the UI.
                     }
                 }
             }
