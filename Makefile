@@ -42,7 +42,7 @@ chamber-smoke: build
 android-check:
 	cd android && ./gradlew :core:test :app:assembleDebug :app:lintDebug
 
-android-e2e: build python-proto
+android-e2e: build-debug python-proto
 	PYTHONPATH=tests/generated .venv/bin/python tests/android_e2e.py
 
 .PHONY: demo-harness
