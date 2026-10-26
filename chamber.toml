@@ -8,6 +8,6 @@ working_directory = "."
 # To specify a token directly, replace this with:
 # script = 'HRP_REGISTRATION_TOKEN="your-own-random-token-at-least-32-bytes" ./start.sh'
 script = 'HRP_REGISTRATION_TOKEN_FILE="${CHAMBER_DATA_DIR:-./data}/relay-registration-token" ./start.sh'
-upstream = "http://127.0.0.1:53214"
+upstream = "http://127.0.0.1:53323"
 route = "/dsh-remote"
 health_path = "/healthz"
