@@ -339,6 +339,19 @@ impl Store {
                 params![harness, r.device_id],
             ))?;
             require(removed == 1, ErrorCode::MemberNotFound)?;
+            // A revoked device that belongs to no Harness is forgotten entirely.
+            // Re-pairing the same physical phone then creates a fresh membership
+            // instead of conflicting with its old user identity.
+            let remaining: i64 = db(self.0.query_row(
+                "SELECT COUNT(*) FROM members WHERE device_id=?1",
+                [&r.device_id],
+                |row| row.get(0),
+            ))?;
+            if remaining == 0 {
+                db(self
+                    .0
+                    .execute("DELETE FROM devices WHERE id=?1", [&r.device_id]))?;
+            }
             db(self.0.execute(
                 "UPDATE harnesses SET acl_version=acl_version+1 WHERE id=?1",
                 [harness],
@@ -492,6 +505,91 @@ mod tests {
                 )
                 .is_ok()
         );
+    }
+    #[test]
+    fn revoked_device_can_rejoin_with_the_same_key() {
+        let mut store = Store::open(":memory:").unwrap();
+        let key = SigningKey::from_bytes(&[9; 32]);
+        let public_key = key.verifying_key().to_bytes().to_vec();
+        store
+            .register(&HarnessRegisterRequest {
+                harness_id: "h".into(),
+                public_key: public_key.clone(),
+                display_name: "test".into(),
+            })
+            .unwrap();
+        let create = |operation: &str| PairCreateRequest {
+            mutation: Some(Mutation {
+                client_operation_id: operation.into(),
+            }),
+            harness_id: "h".into(),
+            mode: 1,
+        };
+        let Res::PairCreate(first) = store
+            .create_pair(&create("create-1"), "harness:h", None, false, true)
+            .unwrap()
+        else {
+            panic!()
+        };
+        let signature = key.sign(&transcript(
+            b"HRP-PAIR-v1",
+            &[first.pairing_code.as_bytes(), b"d", &public_key],
+        ));
+        store
+            .redeem_pair(&PairRedeemRequest {
+                mutation: Some(Mutation {
+                    client_operation_id: "redeem-1".into(),
+                }),
+                pairing_code: first.pairing_code,
+                device_id: "d".into(),
+                public_key: public_key.clone(),
+                possession_signature: signature.to_bytes().to_vec(),
+            })
+            .unwrap();
+        assert_eq!(store.version("h").unwrap(), 1);
+        store
+            .revoke_member(
+                &MemberRevokeRequest {
+                    mutation: Some(Mutation {
+                        client_operation_id: "revoke".into(),
+                    }),
+                    harness_id: "h".into(),
+                    device_id: "d".into(),
+                },
+                "h",
+            )
+            .unwrap();
+        assert!(store.member("h", "d").is_err());
+        assert!(store.device("d").is_err());
+        assert_eq!(store.version("h").unwrap(), 2);
+        let Res::PairCreate(second) = store
+            .create_pair(&create("create-2"), "harness:h", None, false, true)
+            .unwrap()
+        else {
+            panic!()
+        };
+        let signature = key.sign(&transcript(
+            b"HRP-PAIR-v1",
+            &[second.pairing_code.as_bytes(), b"d", &public_key],
+        ));
+        let Res::PairRedeem(redeemed) = store
+            .redeem_pair(&PairRedeemRequest {
+                mutation: Some(Mutation {
+                    client_operation_id: "redeem-2".into(),
+                }),
+                pairing_code: second.pairing_code,
+                device_id: "d".into(),
+                public_key: public_key.clone(),
+                possession_signature: signature.to_bytes().to_vec(),
+            })
+            .unwrap()
+        else {
+            panic!()
+        };
+        assert_eq!(redeemed.harness_id, "h");
+        assert_eq!(redeemed.device_id, "d");
+        assert_eq!(redeemed.acl_version, 3);
+        assert!(store.member("h", "d").is_ok());
     }
     #[test]
     fn pairing_receipt_survives_reopen_without_repeating_membership_effects() {
