@@ -66,7 +66,7 @@ class Harness(Client):
         assert p.acl_version == self.acl_version
         self.seen_principals.append(copy.deepcopy(p))
         session = getattr(value, "session_id", None)
-        if session and (session not in self.sessions or self.sessions[session]["user"] != p.user_id):
+        if session and session not in self.sessions:
             await self.reply(forward, error=pb.ERROR_CODE_SESSION_NOT_FOUND)
             return
         mutation = getattr(value, "mutation", None)
@@ -84,7 +84,9 @@ class Harness(Client):
         if op == "capabilities_get":
             result = pb.CapabilitiesGetResponse(operations=["session.list", "session.follow", "agent.send", "approval.decide"], max_frame_bytes=1024 * 1024, max_page_size=200, content_types=["text"])
         elif op == "session_list":
-            result = pb.SessionListResponse(sessions=[self.summary(k) for k, s in self.sessions.items() if s["user"] == p.user_id])
+            # The Harness directory is the native workspace directory: every
+            # authenticated member sees the same Sessions, regardless of creator.
+            result = pb.SessionListResponse(sessions=[self.summary(k) for k in self.sessions])
         elif op == "session_create":
             session = uid()
             self.sessions[session] = {"user": p.user_id, "events": [], "title": value.title}
