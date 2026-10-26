@@ -1,5 +1,8 @@
 package dev.dshremote.app
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -7,8 +10,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,20 +28,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.ViewModelProvider
+import com.mikepenz.markdown.m3.Markdown
 import com.google.protobuf.Struct
 import com.google.protobuf.Value
 import dev.dshremote.core.*
@@ -56,6 +53,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         // Screenshots and the recents preview are intentionally allowed.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
+        }
         try {
             remote = ViewModelProvider(this)[RemoteViewModel::class.java]
         } catch (_: Exception) {
@@ -531,177 +532,15 @@ private fun valueText(value: Value): String = when (value.kindCase) {
 
 private fun formatDuration(seconds: Long): String = if (seconds >= 60) "${seconds / 60} 分 ${seconds % 60} 秒" else "${seconds} 秒"
 
-private sealed interface MdBlock {
-    data class Heading(val level: Int, val text: String) : MdBlock
-    data class Paragraph(val text: String) : MdBlock
-    data class Code(val language: String, val text: String) : MdBlock
-    data class Bullet(val ordered: Boolean, val index: Int, val text: String) : MdBlock
-    data class Quote(val text: String) : MdBlock
-    data class Table(val header: List<String>, val rows: List<List<String>>) : MdBlock
-    data object Rule : MdBlock
-}
-
-private fun mdCells(line: String): List<String> =
-    line.trim().removePrefix("|").removeSuffix("|").split("|").map { it.trim() }
-
-private fun mdTableSeparator(line: String): Boolean {
-    val cells = mdCells(line)
-    return cells.isNotEmpty() && cells.all { Regex("^:?-{3,}:?$").matches(it) }
-}
-
-private fun mdSpecialAt(lines: List<String>, index: Int): Boolean {
-    val line = lines[index]
-    val t = line.trim()
-    if (t.isBlank() || t.startsWith("```") || t.startsWith(">") ||
-        Regex("^#{1,6}\\s+.*").matches(t) || Regex("^[-*+]\\s+.*").matches(t) ||
-        Regex("^\\d+[.)]\\s+.*").matches(t) || t in setOf("---", "***", "___")) return true
-    return line.contains("|") && index + 1 < lines.size && mdTableSeparator(lines[index + 1])
-}
-
-private fun parseMarkdown(source: String): List<MdBlock> {
-    val lines = source.replace("\r\n", "\n").replace('\r', '\n').split('\n')
-    val blocks = mutableListOf<MdBlock>()
-    var i = 0
-    while (i < lines.size) {
-        val line = lines[i]
-        if (line.isBlank()) { i++; continue }
-        if (line.trimStart().startsWith("```")) {
-            val language = line.trim().removePrefix("```").trim()
-            val code = mutableListOf<String>()
-            i++
-            while (i < lines.size && !lines[i].trimStart().startsWith("```")) { code += lines[i]; i++ }
-            if (i < lines.size) i++
-            blocks += MdBlock.Code(language, code.joinToString("\n"))
-            continue
-        }
-        val heading = Regex("^(#{1,6})\\s+(.*)$").matchEntire(line)
-        if (heading != null) {
-            blocks += MdBlock.Heading(heading.groupValues[1].length, heading.groupValues[2].trim())
-            i++
-            continue
-        }
-        if (line.trim() in setOf("---", "***", "___")) { blocks += MdBlock.Rule; i++; continue }
-        if (line.trimStart().startsWith(">")) {
-            val quote = mutableListOf<String>()
-            while (i < lines.size && lines[i].trimStart().startsWith(">")) {
-                quote += lines[i].trimStart().removePrefix(">").trimStart(); i++
-            }
-            blocks += MdBlock.Quote(quote.joinToString("\n")); continue
-        }
-        if (line.contains("|") && i + 1 < lines.size && mdTableSeparator(lines[i + 1])) {
-            val header = mdCells(line)
-            i += 2
-            val rows = mutableListOf<List<String>>()
-            while (i < lines.size && lines[i].trim().isNotEmpty() && lines[i].contains("|")) {
-                rows += mdCells(lines[i]); i++
-            }
-            blocks += MdBlock.Table(header, rows); continue
-        }
-        val unordered = Regex("^[-*+]\\s+(.*)$").matchEntire(line.trimStart())
-        if (unordered != null) { blocks += MdBlock.Bullet(false, 0, unordered.groupValues[1]); i++; continue }
-        val ordered = Regex("^(\\d+)[.)]\\s+(.*)$").matchEntire(line.trimStart())
-        if (ordered != null) { blocks += MdBlock.Bullet(true, ordered.groupValues[1].toIntOrNull() ?: 1, ordered.groupValues[2]); i++; continue }
-        val paragraph = mutableListOf<String>()
-        while (i < lines.size && !mdSpecialAt(lines, i)) { paragraph += lines[i].trim(); i++ }
-        if (paragraph.isNotEmpty()) blocks += MdBlock.Paragraph(paragraph.joinToString("\n"))
-    }
-    return blocks
-}
-
-@Composable
-private fun inlineMarkdown(text: String): AnnotatedString {
-    val codeBackground = MaterialTheme.colorScheme.surfaceVariant
-    val linkColor = MaterialTheme.colorScheme.primary
-    return buildAnnotatedString {
-        var i = 0
-        while (i < text.length) {
-            when {
-                text.startsWith("**", i) -> {
-                    val end = text.indexOf("**", i + 2)
-                    if (end > i) { withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(text.substring(i + 2, end)) }; i = end + 2 }
-                    else { append(text[i]); i++ }
-                }
-                text.startsWith("~~", i) -> {
-                    val end = text.indexOf("~~", i + 2)
-                    if (end > i) { withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) { append(text.substring(i + 2, end)) }; i = end + 2 }
-                    else { append(text[i]); i++ }
-                }
-                text[i] == '`' -> {
-                    val end = text.indexOf('`', i + 1)
-                    if (end > i) { withStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = codeBackground)) { append(text.substring(i + 1, end)) }; i = end + 1 }
-                    else { append(text[i]); i++ }
-                }
-                text[i] == '[' -> {
-                    val close = text.indexOf("](", i + 1)
-                    val end = if (close > i) text.indexOf(')', close + 2) else -1
-                    if (close > i && end > close) {
-                        withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) { append(text.substring(i + 1, close)) }
-                        i = end + 1
-                    } else { append(text[i]); i++ }
-                }
-                text[i] == '*' -> {
-                    val end = text.indexOf('*', i + 1)
-                    if (end > i) { withStyle(SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)) { append(text.substring(i + 1, end)) }; i = end + 1 }
-                    else { append(text[i]); i++ }
-                }
-                else -> { append(text[i]); i++ }
-            }
-        }
-    }
-}
-
 @Composable
 private fun MarkdownMessage(text: String) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
         Text("Harness", Modifier.padding(horizontal = 4.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                for (block in parseMarkdown(text)) {
-                    when (block) {
-                        is MdBlock.Heading -> Text(
-                            inlineMarkdown(block.text),
-                            style = when (block.level) {
-                                1 -> MaterialTheme.typography.headlineSmall
-                                2 -> MaterialTheme.typography.titleLarge
-                                3 -> MaterialTheme.typography.titleMedium
-                                else -> MaterialTheme.typography.titleSmall
-                            },
-                            fontWeight = FontWeight.Bold,
-                        )
-                        is MdBlock.Paragraph -> SelectionContainer { Text(inlineMarkdown(block.text), style = MaterialTheme.typography.bodyMedium, lineHeight = 23.sp) }
-                        is MdBlock.Code -> Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-                            Column {
-                                if (block.language.isNotBlank()) Text(block.language, Modifier.padding(start = 12.dp, top = 8.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                SelectionContainer {
-                                    Text(block.text, Modifier.horizontalScroll(rememberScrollState()).padding(12.dp), fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 18.sp)
-                                }
-                            }
-                        }
-                        is MdBlock.Bullet -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(if (block.ordered) "${block.index}." else "•", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-                            SelectionContainer { Text(inlineMarkdown(block.text), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, lineHeight = 22.sp) }
-                        }
-                        is MdBlock.Quote -> Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Box(Modifier.width(3.dp).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
-                            SelectionContainer { Text(inlineMarkdown(block.text), Modifier.weight(1f).padding(vertical = 2.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        }
-                        is MdBlock.Table -> Column(Modifier.fillMaxWidth()) {
-                            Row(Modifier.fillMaxWidth()) {
-                                block.header.forEach { cell -> Text(inlineMarkdown(cell), Modifier.weight(1f).padding(6.dp), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold) }
-                            }
-                            HorizontalDivider()
-                            block.rows.forEach { row ->
-                                Row(Modifier.fillMaxWidth()) {
-                                    block.header.indices.forEach { index ->
-                                        Text(inlineMarkdown(row.getOrNull(index).orEmpty()), Modifier.weight(1f).padding(6.dp), style = MaterialTheme.typography.bodySmall)
-                                    }
-                                }
-                            }
-                        }
-                        MdBlock.Rule -> HorizontalDivider()
-                    }
-                }
-            }
+            Markdown(
+                content = text,
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+            )
         }
     }
 }

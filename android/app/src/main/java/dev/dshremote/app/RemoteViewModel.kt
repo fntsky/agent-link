@@ -36,11 +36,22 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     private val vault = CredentialVault(application)
     private val client = RelayClient(vault.identity)
     private var action: Job? = null
+    private var reconnectJob: Job? = null
+    private var reconnectAttempt = 0
     private var manuallyDisconnected = false
     private val _ui = MutableStateFlow(RemoteUi(address = vault.profile?.endpoint?.removeSuffix("/ws/mobile") ?: "", pendingSend = vault.pendingSend))
     val ui = _ui.asStateFlow()
     init {
-        viewModelScope.launch { client.link.collect { link -> _ui.update { it.copy(connected = link.connected, status = link.message) } } }
+        viewModelScope.launch {
+            client.link.collect { link ->
+                _ui.update { it.copy(connected = link.connected, status = link.message) }
+                if (link.connected) {
+                    reconnectAttempt = 0
+                } else if (!manuallyDisconnected) {
+                    scheduleReconnect()
+                }
+            }
+        }
         viewModelScope.launch { client.conversation.collect { c ->
             _ui.update { current ->
                 val echo = current.localEcho
@@ -70,7 +81,23 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
             try { block() }
             catch (e: CancellationException) { if (e is kotlinx.coroutines.TimeoutCancellationException) _ui.update { it.copy(error = readable(e)) } else throw e }
             catch (e: Exception) { _ui.update { it.copy(error = readable(e)) } }
-            finally { _ui.update { it.copy(busy = false) } }
+            finally {
+                _ui.update { it.copy(busy = false) }
+                if (!ui.value.connected && !manuallyDisconnected) scheduleReconnect()
+            }
+        }
+    }
+    private fun scheduleReconnect() {
+        if (manuallyDisconnected || reconnectJob?.isActive == true) return
+        val profile = vault.profile ?: return
+        if (profile.harness.isBlank() || profile.endpoint.isBlank()) return
+        val delayMs = minOf(30_000L, 1_000L shl minOf(reconnectAttempt, 5))
+        reconnectAttempt += 1
+        reconnectJob = viewModelScope.launch {
+            delay(delayMs)
+            if (manuallyDisconnected || ui.value.connected || ui.value.busy) return@launch
+            reconnectJob = null
+            connect(profile.endpoint.removeSuffix("/ws/mobile"), "")
         }
     }
     fun connect(address: String, pairingCode: String) = launchWork {
@@ -92,6 +119,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
                 client.connect(endpoint)
             }
             require(profile != null && profile.harness.isNotBlank())
+            RelayKeepAliveService.start(getApplication())
             val relay = client.authenticate(profile.relayId.takeIf { it.isNotEmpty() })
             vault.profile = profile.copy(relayId = relay, pairingCode = "", pairingOperation = "")
             client.selectHarness(profile.harness)
@@ -102,8 +130,11 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     }
     fun disconnect() {
         manuallyDisconnected = true
+        reconnectJob?.cancel()
+        reconnectJob = null
         action?.cancel()
         client.disconnect()
+        RelayKeepAliveService.stop(getApplication())
         _ui.update { it.copy(localEcho = null) }
     }
     private suspend fun loadSessions(next: Boolean) {
@@ -194,7 +225,12 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     fun closeModels() { _ui.update { it.copy(models = null) } }
     fun pair(mode: PairMode) = launchWork { val result = mutate("pair:${mode.number}") { client.createPair(mode, it) }; _ui.update { it.copy(pairing = result) } }
     fun closePairing() { _ui.update { it.copy(pairing = null) } }
-    override fun onCleared() { client.close() }
+    override fun onCleared() {
+        reconnectJob?.cancel()
+        RelayKeepAliveService.stop(getApplication())
+        client.close()
+    }
+
     private fun readable(error: Exception): String = when (error) {
         is RelayException -> {
             val detail = error.message?.takeIf { it.isNotBlank() && it != error.code.name }
