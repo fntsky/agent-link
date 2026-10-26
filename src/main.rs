@@ -9,6 +9,7 @@ use axum::{
         ws::{Message, WebSocket},
     },
     http::{HeaderMap, StatusCode},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::get,
 };
@@ -22,6 +23,25 @@ use tokio::sync::{Mutex, mpsc, watch};
 struct App {
     hub: Arc<Mutex<Hub>>,
     registration_hash: [u8; 32],
+}
+// Log only known paths/status; never headers, query strings or payloads.
+async fn access_log(request: axum::extract::Request, next: Next) -> Response {
+    let path = match request.uri().path() {
+        "/healthz" => "/healthz",
+        "/ws/mobile" => "/ws/mobile",
+        "/ws/harness" => "/ws/harness",
+        _ => "<other>",
+    };
+    let peer = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|c| c.0);
+    let response = next.run(request).await;
+    eprintln!(
+        "http peer={peer:?} path={path} status={}",
+        response.status().as_u16()
+    );
+    response
 }
 async fn mobile(
     State(app): State<App>,
@@ -56,6 +76,7 @@ fn upgrade(
         .and_then(|v| v.to_str().ok())
         .is_some_and(|v| v.split(',').any(|v| v.trim() == protocol));
     if !offered {
+        eprintln!("ws handshake_rejected peer={addr} reason=missing_subprotocol");
         return (
             StatusCode::BAD_REQUEST,
             "required HRP WebSocket subprotocol missing",
@@ -83,25 +104,40 @@ async fn connection(app: App, socket: WebSocket, peer: Peer, registration: bool,
         .await
         .connect(peer, registration, addr.ip(), tx, close)
     else {
+        eprintln!("ws connection_rejected peer={addr} reason=capacity_or_rate_limit");
         return;
     };
+    eprintln!(
+        "ws connected peer={addr} connection={cid} kind={}",
+        if peer == Peer::Mobile {
+            "mobile"
+        } else {
+            "harness"
+        }
+    );
+    let mut reason = "peer_closed";
     let (mut sink, mut source) = socket.split();
     let mut heartbeat = tokio::time::interval(Duration::from_secs(15));
     let mut last_seen = tokio::time::Instant::now();
     loop {
         let outgoing = tokio::select! {
-            _=cancelled.changed()=>break,
-            _=heartbeat.tick()=>{if last_seen.elapsed()>Duration::from_secs(45){break} Some(Message::Ping(Vec::new().into()))},
+            _=cancelled.changed()=>{reason="server_closed";break},
+            _=heartbeat.tick()=>{if last_seen.elapsed()>Duration::from_secs(45){reason="heartbeat_timeout";break} Some(Message::Ping(Vec::new().into()))},
             data=rx.recv()=>data.map(|data|Message::Binary(data.into())),
             incoming=source.next()=>{
                 match incoming{
                     Some(Ok(Message::Binary(data)))=>{
                         last_seen=tokio::time::Instant::now();
-                        if app.hub.lock().await.receive(&cid,&data).is_err(){break}
+                        if let Err(code)=app.hub.lock().await.receive(&cid,&data){
+                            eprintln!("ws rejected connection={cid} code={}",code.as_str_name());
+                            reason="protocol_rejected";break
+                        }
                         continue
                     }
                     Some(Ok(Message::Ping(data)))=>{last_seen=tokio::time::Instant::now();Some(Message::Pong(data))}
                     Some(Ok(Message::Pong(_)))=>{last_seen=tokio::time::Instant::now();continue}
+                    Some(Ok(Message::Text(_)))=>{reason="text_frame_rejected";break},
+                    Some(Err(_))=>{reason="transport_error";break},
                     _=>break,
                 }
             }
@@ -111,9 +147,11 @@ async fn connection(app: App, socket: WebSocket, peer: Peer, registration: bool,
             tokio::time::timeout(Duration::from_secs(5), sink.send(message)).await,
             Ok(Ok(()))
         ) {
+            reason = "write_failed_or_timeout";
             break;
         }
     }
+    eprintln!("ws disconnected peer={addr} connection={cid} reason={reason}");
     app.hub.lock().await.disconnect(&cid);
     let _ = tokio::time::timeout(Duration::from_secs(1), sink.close()).await;
 }
@@ -144,6 +182,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/healthz", get(|| async { "ok" }))
         .route("/ws/mobile", get(mobile))
         .route("/ws/harness", get(harness))
+        .layer(middleware::from_fn(access_log))
         .with_state(app);
     let listener = tokio::net::TcpListener::bind(&address).await?;
     eprintln!("dsh-remote listening on {}", listener.local_addr()?);

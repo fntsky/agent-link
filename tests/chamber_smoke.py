@@ -15,25 +15,27 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 config = tomllib.loads((ROOT / "chamber.toml").read_text())
-assert config["chamber"]["name"] == ROOT.name
+assert config["chamber"]["name"] == "dsh-remote"
 assert config["chamber"]["schema_version"] == 1
-assert config["chamber"]["prepare"] == "cargo build --release --locked"
+assert "prepare" not in config["chamber"], "prebuilt deployment must not compile at startup"
+assert (ROOT / "dist/dsh-remote").is_file()
 proxy = config["proxyhttp"]
 upstream = urlparse(proxy["upstream"])
 assert upstream.scheme == "http" and upstream.hostname == "127.0.0.1"
 assert proxy["route"] == "/dsh-remote"
 with tempfile.TemporaryDirectory(prefix="hrp-chamber-") as directory:
     with socket.socket() as check:
-        check.bind((upstream.hostname, upstream.port))
+        check.bind((upstream.hostname, 0))
+        port = check.getsockname()[1]
     with open(Path(directory) / "server.log", "w+") as log:
         env = {k: v for k, v in os.environ.items() if k not in ("HRP_LISTEN", "HRP_DATABASE")}
-        env.update(CHAMBER_DATA_DIR=directory, HRP_REGISTRATION_TOKEN="chamber-smoke-" + "x" * 32)
+        env.update(HRP_LISTEN=f"127.0.0.1:{port}", CHAMBER_DATA_DIR=directory, HRP_REGISTRATION_TOKEN="chamber-smoke-" + "x" * 32)
         process = subprocess.Popen(["sh", "-c", "exec " + proxy["script"]], cwd=ROOT / proxy["working_directory"], env=env, stdout=log, stderr=log)
         try:
             for _ in range(100):
                 assert process.poll() is None, "start script exited before healthy"
                 try:
-                    with urllib.request.urlopen(proxy["upstream"] + proxy["health_path"], timeout=0.2) as response:
+                    with urllib.request.urlopen(f"http://127.0.0.1:{port}" + proxy["health_path"], timeout=0.2) as response:
                         assert response.status == 200 and response.read() == b"ok"
                     break
                 except OSError:
