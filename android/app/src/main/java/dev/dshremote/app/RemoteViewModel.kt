@@ -95,7 +95,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         return result
     }
     fun create(title: String) = launchWork {
-        val created = mutate("create:$title") { client.createSession(title.ifBlank { "新会话" }, it) }
+        val created = mutate("create:$title") { client.createSession(title.trim(), it) }
         val session = created.baseline.session
         _ui.update { it.copy(sessions = listOf(session) + it.sessions.filterNot { old -> old.sessionId == session.sessionId }, directoryLoaded = true) }
         client.follow(session.sessionId)

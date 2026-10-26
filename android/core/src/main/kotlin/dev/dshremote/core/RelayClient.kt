@@ -147,7 +147,13 @@ class RelayClient(private val identity: DeviceIdentity) {
     fun selectHarness(harness: String) { activeHarness = harness }
     suspend fun capabilities(): CapabilitiesGetResponse = rpc(dev.dshremote.protocol.Request.newBuilder().setCapabilitiesGet(CapabilitiesGetRequest.getDefaultInstance()).build()).capabilitiesGet
     suspend fun sessions(pageToken: String? = null): SessionListResponse = rpc(dev.dshremote.protocol.Request.newBuilder().setSessionList(SessionListRequest.newBuilder().setPageSize(50).apply { pageToken?.let(::setPageToken) }).build()).sessionList
-    suspend fun createSession(title: String, operationId: String): SessionCreateResponse = rpc(dev.dshremote.protocol.Request.newBuilder().setSessionCreate(SessionCreateRequest.newBuilder().setTitle(title).setMutation(mutation(operationId))).build()).sessionCreate
+    suspend fun createSession(title: String, operationId: String): SessionCreateResponse {
+        val request = SessionCreateRequest.newBuilder().setMutation(mutation(operationId))
+        // An empty title keeps the native DSH auto-title; a provided title is written
+        // as a normal session/title event by the Harness adapter.
+        if (title.isNotBlank()) request.setTitle(title)
+        return rpc(dev.dshremote.protocol.Request.newBuilder().setSessionCreate(request).build()).sessionCreate
+    }
     suspend fun follow(session: String) = navigation.withLock {
         leaveInternal()
         try {

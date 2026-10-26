@@ -169,13 +169,15 @@ private fun Directory(state: RemoteUi, vm: RemoteViewModel, create: () -> Unit, 
             }
             FilledTonalIconButton(onClick = create, enabled = !state.busy) { Icon(Icons.Default.Add, "新建会话") }
         }
+        Text("与 Harness 工作区共用同一份会话目录", Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (!state.directoryLoaded || state.sessions.isEmpty()) {
             Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Icon(Icons.Default.Forum, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.height(16.dp))
-                Text(if (!state.directoryLoaded) "准备好时，再打开会话" else "还没有可访问的会话", style = MaterialTheme.typography.titleLarge)
+                Text(if (!state.directoryLoaded) "准备好时，再打开会话" else "工作区还没有会话", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(8.dp))
-                Text(if (!state.directoryLoaded) "历史留在 Harness，点击后才会读取。" else "创建一个会话开始工作。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (!state.directoryLoaded) "历史留在 Harness，点击后才会读取。" else "在工作区或这里创建会话开始工作。", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(20.dp))
                 Button(onClick = { if (!state.directoryLoaded) vm.refresh() else create() }, enabled = !state.busy) { Text(if (!state.directoryLoaded) "读取会话" else "新建会话") }
             }

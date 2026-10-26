@@ -33,6 +33,8 @@ class RelayIntegrationTest {
             assertTrue(listed!!.sessionsList.isEmpty())
             val created = client.createSession("Kotlin round trip", DeviceIdentity.newId())
             val session = created.baseline.session.sessionId
+            // The native directory is shared immediately; no plugin-specific session list.
+            assertTrue(client.sessions().sessionsList.any { it.sessionId == session })
             client.follow(session)
             assertTrue(client.conversation.value!!.following)
             assertEquals(0L, client.conversation.value!!.cursor)
