@@ -154,20 +154,23 @@ function mapEvent(event, principal) {
       return { ...base, lifecycle: { outcome: 'running' } };
     case 'turn/end':
       return { ...base, lifecycle: { outcome: turnOutcome(data.reason), reason: data.reason?.kind } };
-    case 'model/selected':
-      if (data.selection) {
+    case 'model/selection':
+    case 'model/selected': {
+      const selection = data.selection || data;
+      if (selection && selection.provider && selection.model) {
         return {
           ...base,
           model_selection: {
-            provider: String(data.selection.provider || ''),
-            model: String(data.selection.model || ''),
-            ...(data.selection.reasoningEffort || data.selection.reasoning_effort
-              ? { reasoning_effort: String(data.selection.reasoningEffort || data.selection.reasoning_effort) }
+            provider: String(selection.provider),
+            model: String(selection.model),
+            ...(selection.reasoningEffort || selection.reasoning_effort
+              ? { reasoning_effort: String(selection.reasoningEffort || selection.reasoning_effort) }
               : {}),
           },
         };
       }
       break;
+    }
     case 'approval/asked':
       return {
         ...base,
@@ -177,15 +180,23 @@ function mapEvent(event, principal) {
           outcome: 0,
         },
       };
-    case 'approval/decided':
+    case 'approval/decided': {
+      const outcome = data.decision === 'allow' || data.outcome === 'allowed' || data.outcome === 'allowed-once'
+        ? 1
+        : data.outcome === 'rejected'
+          ? 2
+          : data.outcome === 'cancelled'
+            ? 3
+            : 4;
       return {
         ...base,
         approval: {
           approval_id: String(data.approvalId || data.id || ''),
           call_id: data.callId ? String(data.callId) : undefined,
-          outcome: data.decision === 'allow' || data.outcome === 'allowed' ? 1 : 2,
+          outcome,
         },
       };
+    }
     default:
       break;
   }
@@ -495,11 +506,14 @@ export class SessionBridge {
             next_chunk_index: Number(active.nextIndex || 0),
           }];
         }
+        const attempts = new Map();
+        if (active) attempts.set(String(active.attemptId), Number(active.nextIndex || 0));
         this.subscriptions.set(subscriptionId, {
           sessionId: payload.session_id,
           connectionId: forward.connection_id,
           abort,
           iterator,
+          attempts,
         });
         setTimeout(() => this.#pumpSubscription(subscriptionId), 0);
         return { subscription_id: subscriptionId, baseline };
@@ -632,7 +646,7 @@ export class SessionBridge {
   async #pumpSubscription(subscriptionId) {
     const subscription = this.subscriptions.get(subscriptionId);
     if (!subscription) return;
-    const { iterator, sessionId, abort } = subscription;
+    const { iterator, sessionId, abort, attempts } = subscription;
     try {
       for (;;) {
         const { value, done } = await iterator.next();
@@ -646,7 +660,7 @@ export class SessionBridge {
             cursor: Number(event.seq || 0),
           }, { subscriptionId });
         } else if (value.type === 'assistant-stream') {
-          this.#sendAssistantFrame(sessionId, subscriptionId, value.frame);
+          this.#sendAssistantFrame(sessionId, subscriptionId, value.frame, attempts);
         }
       }
     } catch (error) {
@@ -662,11 +676,12 @@ export class SessionBridge {
     }
   }
 
-  #sendAssistantFrame(sessionId, subscriptionId, frame) {
+  #sendAssistantFrame(sessionId, subscriptionId, frame, attempts) {
     if (!frame) return;
     const attemptId = String(frame.attemptId || '');
     const revision = Number(frame.revision || 1);
     if (frame.type === 'start') {
+      attempts.set(attemptId, 0);
       this.adapter.sendEvent('assistant_live_start', {
         session_id: sessionId,
         attempt: {
@@ -688,20 +703,22 @@ export class SessionBridge {
         tool_call: {
           call_id: String(chunk.id || ''),
           tool_name: String(chunk.name || ''),
-          arguments: parseJsonObject(chunk.argumentsDelta),
+          arguments: {},
         },
       };
-      else if (chunk.type === 'block-end' && chunk.block) content = contentBlock(chunk.block);
       if (!content) return;
+      const index = attempts.get(attemptId) ?? Number(frame.index || 0);
+      attempts.set(attemptId, index + 1);
       this.adapter.sendEvent('assistant_live_chunk', {
         session_id: sessionId,
         attempt_id: attemptId,
         revision,
-        chunks: [{ chunk_index: Number(frame.index || 0), content }],
+        chunks: [{ chunk_index: index, content }],
       }, { subscriptionId });
       return;
     }
     if (frame.type === 'end') {
+      attempts.delete(attemptId);
       const outcome = frame.outcome?.kind;
       const map = { committed: 1, abandoned: 2, failed: 3, cancelled: 4 };
       if (!map[outcome]) return;
