@@ -12,7 +12,7 @@ from client import Client, pb, uid
 
 class Harness(Client):
     def __init__(self, base, **kwargs):
-        super().__init__(base, harness=True, identity="test-harness", **kwargs)
+        super().__init__(base, harness=True, identity=kwargs.pop("identity", "test-harness"), **kwargs)
         self.members = {}
         self.acl_version = 0
         self.sessions = {}
@@ -198,6 +198,9 @@ class Harness(Client):
         if value.content[0].text == "approval":
             request = pb.ApprovalRequest(session_id=session, approval_id=uid(), call_id=uid(), tool_name="test-tool", reason="test only")
             request.expires_at.seconds = int(time.time()) + 60
+            call = pb.SessionEvent(event_type="tool/call", tool_call=pb.ToolCall(call_id=request.call_id, tool_name=request.tool_name))
+            self.append(session, call)
+            await self.emit(session, "session_committed", pb.SessionCommitted(session_id=session, events=[user, call], cursor=call.session_seq))
             approval = {"request": request, "tokens": {}, "resolved": False}
             self.approvals[request.approval_id] = approval
             for sub, (connection, sid, _) in list(self.subscriptions.items()):

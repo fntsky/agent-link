@@ -29,3 +29,14 @@ run:
 chamber-smoke:
 	cargo build --release --locked
 	python3 tests/chamber_smoke.py
+
+.PHONY: android-check android-e2e
+android-check:
+	cd android && ./gradlew :core:test :app:assembleDebug :app:lintDebug
+
+android-e2e: build python-proto
+	PYTHONPATH=tests/generated .venv/bin/python tests/android_e2e.py
+
+.PHONY: demo-harness
+demo-harness: python-proto
+	PYTHONPATH=tests:tests/generated .venv/bin/python scripts/demo_harness.py

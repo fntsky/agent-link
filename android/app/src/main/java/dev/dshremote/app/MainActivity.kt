@@ -1,0 +1,312 @@
+package dev.dshremote.app
+
+import android.os.Bundle
+import android.view.WindowManager
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.ViewModelProvider
+import dev.dshremote.core.*
+import dev.dshremote.protocol.*
+import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+class MainActivity : ComponentActivity() {
+    private lateinit var remote: RemoteViewModel
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        // Pairing credentials, tool arguments and chats stay out of screenshots/recents.
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        try {
+            remote = ViewModelProvider(this)[RemoteViewModel::class.java]
+        } catch (_: Exception) {
+            setContent {
+                MaterialTheme {
+                    Surface(Modifier.fillMaxSize()) {
+                        Column(Modifier.safeDrawingPadding().padding(28.dp), verticalArrangement = Arrangement.Center) {
+                            Text("设备凭证无法读取", style = MaterialTheme.typography.headlineMedium)
+                            Spacer(Modifier.height(16.dp))
+                            Text("本机密钥可能已失效，应用已停止连接，且不会自动替换设备身份。请保留现有数据并检查设备 Keystore。")
+                        }
+                    }
+                }
+            }
+            return
+        }
+        setContent {
+            val state by remote.ui.collectAsStateWithLifecycle()
+            val dark = isSystemInDarkTheme()
+            val colors = if (dark) darkColorScheme(primary = Color(0xFF9AD9C6), secondary = Color(0xFFEDBB8B), background = Color(0xFF101917), surface = Color(0xFF16211E))
+                else lightColorScheme(primary = Color(0xFF186C58), secondary = Color(0xFF9A5425), background = Color(0xFFF6F7F2), surface = Color(0xFFFCFDF8), surfaceVariant = Color(0xFFE9EDE5))
+            MaterialTheme(colorScheme = colors) { RemoteApp(state, remote) }
+        }
+    }
+    override fun onStop() {
+        super.onStop()
+        if (::remote.isInitialized && !isChangingConfigurations) remote.background()
+    }
+}
+
+@Composable
+private fun RemoteApp(state: RemoteUi, vm: RemoteViewModel) {
+    var createDialog by remember { mutableStateOf(false) }
+    var cancelDialog by remember { mutableStateOf(false) }
+    var abandonDialog by remember { mutableStateOf(false) }
+    BackHandler(state.conversation != null && state.connected) { if (!state.busy) vm.leave() }
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (state.conversation != null && state.connected) IconButton(onClick = vm::leave, enabled = !state.busy) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回会话列表") }
+                else Icon(Icons.Default.Terminal, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+                Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                    Text(state.conversation?.session?.title?.ifBlank { "会话" }?.takeIf { state.connected } ?: "DSH Remote", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(state.status, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (state.connected) IconButton(onClick = vm::disconnect, enabled = !state.busy) { Icon(Icons.Default.LinkOff, "断开连接") }
+            }
+            if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            state.error?.let { Banner(it, true) }
+            state.notice?.let { Banner(it) }
+            when {
+                !state.connected -> ConnectPanel(state, vm, Modifier.weight(1f))
+                state.conversation == null -> Directory(state, vm, { createDialog = true }, Modifier.weight(1f))
+                else -> Chat(state, vm, { cancelDialog = true }, { abandonDialog = true }, Modifier.weight(1f))
+            }
+        }
+    }
+    if (createDialog) {
+        var title by remember { mutableStateOf("") }
+        AlertDialog(onDismissRequest = { createDialog = false }, title = { Text("新建会话") }, text = {
+            OutlinedTextField(title, { title = it }, label = { Text("会话名称") }, singleLine = true)
+        }, confirmButton = { TextButton(onClick = { createDialog = false; vm.create(title) }) { Text("创建") } }, dismissButton = { TextButton(onClick = { createDialog = false }) { Text("取消") } })
+    }
+    if (cancelDialog) Confirm("请求停止 Agent？", "已生成的内容会保留，Inbox 队列会保留。实际停止由会话结束事件确认。", "请求停止", { cancelDialog = false; vm.cancel() }, { cancelDialog = false })
+    if (abandonDialog) Confirm("放弃本地重试？", "远端可能已经接受这条消息。此操作只移除本机重试记录。", "放弃重试", { abandonDialog = false; vm.abandonSend() }, { abandonDialog = false })
+    state.models?.let { models ->
+        AlertDialog(onDismissRequest = vm::closeModels, title = { Text("选择模型") }, text = {
+            LazyColumn { items(models) { option ->
+                ListItem(headlineContent = { Text(option.selection.model) }, supportingContent = { Text(listOf(option.selection.provider, option.selection.reasoningEffort).filter { it.isNotBlank() }.joinToString(" · ")) }, leadingContent = { RadioButton(option.selection == state.model, onClick = null) }, modifier = Modifier.clickable(enabled = !state.busy) { vm.chooseModel(option.selection) })
+            } }
+        }, confirmButton = { TextButton(onClick = vm::closeModels) { Text("关闭") } })
+    }
+    state.pairing?.let { pairing ->
+        AlertDialog(onDismissRequest = vm::closePairing, title = { Text("一次性配对码") }, text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("仅交给要绑定的设备使用。到期：${time(pairing.expiresAt.seconds)}")
+                SelectionContainer { Text(pairing.pairingCode, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium) }
+            }
+        }, confirmButton = { TextButton(onClick = vm::closePairing) { Text("完成") } })
+    }
+}
+
+@Composable
+private fun Banner(text: String, error: Boolean = false) {
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), shape = RoundedCornerShape(12.dp), color = if (error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer) {
+        Text(text, Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+private fun ConnectPanel(state: RemoteUi, vm: RemoteViewModel, modifier: Modifier) {
+    var address by rememberSaveable(state.address) { mutableStateOf(state.address) }
+    // Pair codes are intentionally not put in saved-instance-state or the clipboard.
+    var code by remember { mutableStateOf("") }
+    LazyColumn(modifier.fillMaxWidth(), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        item { Spacer(Modifier.height(24.dp)); Icon(Icons.Default.Devices, null, Modifier.size(52.dp), tint = MaterialTheme.colorScheme.primary) }
+        item { Text("把工作现场\n带在身边", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold); Spacer(Modifier.height(10.dp)); Text("连接你的 Harness，按需查看会话、跟进任务，并处理工具审批。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { OutlinedTextField(address, { address = it }, Modifier.fillMaxWidth(), label = { Text("Relay 地址") }, placeholder = { Text("wss://example.com/dsh-remote") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), singleLine = true, enabled = !state.busy) }
+        item { OutlinedTextField(code, { code = it }, Modifier.fillMaxWidth(), label = { Text("首次连接的配对码") }, supportingText = { Text("已配对设备留空即可；配对码由 Harness 或已有设备提供。") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, enabled = !state.busy) }
+        item { Button(onClick = { vm.connect(address, code); code = "" }, Modifier.fillMaxWidth().height(52.dp), enabled = address.isNotBlank() && !state.busy) { Icon(Icons.Default.Link, null); Spacer(Modifier.width(8.dp)); Text("连接 Harness") } }
+        item { Text("设备私钥在本机加密保存。仅连接和认证不会读取会话历史。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    }
+}
+
+@Composable
+private fun Directory(state: RemoteUi, vm: RemoteViewModel, create: () -> Unit, modifier: Modifier) {
+    var menu by remember { mutableStateOf(false) }
+    Column(modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("会话", Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            IconButton(onClick = { vm.refresh() }, enabled = !state.busy) { Icon(Icons.Default.Refresh, "刷新会话") }
+            Box {
+                IconButton(onClick = { menu = true }, enabled = !state.busy) { Icon(Icons.Default.MoreVert, "设备与分享") }
+                DropdownMenu(menu, { menu = false }) {
+                    DropdownMenuItem(text = { Text("绑定我的另一台设备") }, onClick = { menu = false; vm.pair(PairMode.PAIR_MODE_DEVICE_LINK) })
+                    DropdownMenuItem(text = { Text("邀请独立用户") }, onClick = { menu = false; vm.pair(PairMode.PAIR_MODE_INVITE) })
+                }
+            }
+            FilledTonalIconButton(onClick = create, enabled = !state.busy) { Icon(Icons.Default.Add, "新建会话") }
+        }
+        if (!state.directoryLoaded || state.sessions.isEmpty()) {
+            Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Icon(Icons.Default.Forum, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(16.dp))
+                Text(if (!state.directoryLoaded) "准备好时，再打开会话" else "还没有可访问的会话", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(8.dp))
+                Text(if (!state.directoryLoaded) "历史留在 Harness，点击后才会读取。" else "创建一个会话开始工作。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(20.dp))
+                Button(onClick = { if (!state.directoryLoaded) vm.refresh() else create() }, enabled = !state.busy) { Text(if (!state.directoryLoaded) "读取会话" else "新建会话") }
+            }
+        } else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(state.sessions, key = { it.sessionId }) { session ->
+                Card(onClick = { vm.follow(session.sessionId) }, enabled = !state.busy, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.ChatBubbleOutline, null, tint = MaterialTheme.colorScheme.primary)
+                        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+                            Text(session.title.ifBlank { "未命名会话" }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Spacer(Modifier.height(4.dp))
+                            Text("${agentState(session.agentState)} · 已提交 ${session.committedSeq}" + if (session.hasParentSessionId()) " · 分支会话" else "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(Icons.Default.ChevronRight, "进入会话")
+                    }
+                }
+            }
+            state.nextPage?.let { item { TextButton(onClick = { vm.refresh(true) }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("加载更多会话") } } }
+        }
+    }
+}
+
+@Composable
+private fun Chat(state: RemoteUi, vm: RemoteViewModel, cancel: () -> Unit, abandon: () -> Unit, modifier: Modifier) {
+    val c = requireNotNull(state.conversation)
+    var draft by rememberSaveable(c.session.sessionId) { mutableStateOf("") }
+    var steer by rememberSaveable(c.session.sessionId) { mutableStateOf(false) }
+    var more by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    val active = state.connected && c.following && !c.needsResync && !state.busy
+    Column(modifier.fillMaxWidth().imePadding()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(if (c.following) "正在关注 · 已提交 ${c.cursor}" else "已停止关注", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            TextButton(onClick = vm::loadModels, enabled = active) { Text(state.model?.model ?: "模型") }
+            Box {
+                IconButton(onClick = { more = true }) { Icon(Icons.Default.MoreVert, "会话操作") }
+                DropdownMenu(more, { more = false }) {
+                    DropdownMenuItem(text = { Text("重新同步") }, onClick = { more = false; vm.resync() }, enabled = state.connected && !state.busy)
+                    DropdownMenuItem(text = { Text("恢复 Agent") }, onClick = { more = false; vm.resume() }, enabled = active)
+                    DropdownMenuItem(text = { Text("读取待审批") }, onClick = { more = false; vm.approvals() }, enabled = active)
+                    DropdownMenuItem(text = { Text("请求停止 Agent") }, onClick = { more = false; cancel() }, enabled = active)
+                }
+            }
+        }
+        c.notice?.let { Banner(it) }
+        LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item { TextButton(onClick = vm::older, enabled = active, modifier = Modifier.fillMaxWidth()) { Text("读取更早历史") } }
+            items(c.events, key = { "event:${it.sessionSeq}" }) { event -> EventCard(event) }
+            items(c.live.values.toList(), key = { "live:${it.attempt}" }) { output ->
+                MessageCard("正在生成 · 暂未提交", output.blocks.joinToString("") { it.displayText() }.ifEmpty { "等待首个片段…" }, false, transient = true)
+            }
+            if (c.events.isEmpty() && c.live.isEmpty()) item {
+                Text("会话已打开。发送消息开始工作。", Modifier.fillMaxWidth().padding(24.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            items(c.approvals.values.toList(), key = { "approval:${it.approvalId}" }) { approval -> ApprovalCard(approval, c, active, vm) }
+        }
+        state.pendingSend?.let { pending ->
+            Surface(Modifier.fillMaxWidth().padding(horizontal = 12.dp), color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(12.dp)) {
+                Column(Modifier.padding(12.dp)) {
+                    Text("消息回执尚未确认", fontWeight = FontWeight.SemiBold)
+                    Text(pending.text, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                    Row { TextButton(onClick = vm::retrySend, enabled = active) { Text("沿用原编号重试") }; TextButton(onClick = abandon, enabled = !state.busy) { Text("放弃本地重试") } }
+                }
+            }
+        }
+        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            FilterChip(selected = steer, onClick = { steer = !steer }, label = { Text(if (steer) "引导最近步骤" else "下一轮消息") }, enabled = active && state.pendingSend == null)
+            Spacer(Modifier.width(12.dp))
+            Text(if (steer) "运行中也可追加方向" else "进入下一轮 Inbox", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.Bottom) {
+            OutlinedTextField(draft, { draft = it }, Modifier.weight(1f), placeholder = { Text("给 Harness 发消息…") }, maxLines = 5, enabled = active && state.pendingSend == null, shape = RoundedCornerShape(20.dp))
+            Spacer(Modifier.width(8.dp))
+            FilledIconButton(onClick = { vm.send(draft, if (steer) SendMode.SEND_MODE_STEER else SendMode.SEND_MODE_FOLLOWUP); draft = "" }, enabled = active && draft.isNotBlank() && state.pendingSend == null, modifier = Modifier.size(54.dp)) { Icon(Icons.AutoMirrored.Filled.Send, "发送消息") }
+        }
+    }
+}
+
+@Composable
+private fun EventCard(event: SessionEvent) {
+    when (event.bodyCase) {
+        SessionEvent.BodyCase.USER_MESSAGE -> MessageCard("你", event.userMessage.contentList.joinToString("\n") { it.displayText() }, true)
+        SessionEvent.BodyCase.ASSISTANT_MESSAGE -> MessageCard("Harness", event.assistantMessage.contentList.joinToString("\n") { it.displayText() }, false)
+        SessionEvent.BodyCase.ASSISTANT_ATTEMPT -> MessageCard("尝试 · ${event.assistantAttempt.outcome}", event.assistantAttempt.contentList.joinToString("\n") { it.displayText() }, false)
+        SessionEvent.BodyCase.TOOL_CALL -> MessageCard("工具 · ${event.toolCall.toolName}", "调用 ${event.toolCall.callId}\n${event.toolCall.arguments}", false)
+        SessionEvent.BodyCase.TOOL_RESULT -> MessageCard("工具结果", event.toolResult.contentList.joinToString("\n") { it.displayText() }, false)
+        else -> Text("${event.eventType} · #${event.sessionSeq}" + if (event.hasLifecycle() && event.lifecycle.outcome.isNotEmpty()) " · ${event.lifecycle.outcome}" else "", Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun MessageCard(label: String, content: String, user: Boolean, transient: Boolean = false) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = if (user) Alignment.End else Alignment.Start) {
+        Text(label, Modifier.padding(horizontal = 4.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Surface(Modifier.fillMaxWidth(if (user) 0.9f else 1f), shape = RoundedCornerShape(18.dp), color = if (user) MaterialTheme.colorScheme.primaryContainer else if (transient) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface) {
+            SelectionContainer { Text(content.ifEmpty { "（无可显示内容）" }, Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium, lineHeight = 23.sp) }
+        }
+    }
+}
+
+@Composable
+private fun ApprovalCard(approval: ApprovalRequest, conversation: Conversation, enabled: Boolean, vm: RemoteViewModel) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis() / 1000) }
+    LaunchedEffect(approval.approvalId) { while (true) { now = System.currentTimeMillis() / 1000; delay(1000) } }
+    val valid = enabled && approval.expiresAt.seconds > now
+    val call = conversation.events.lastOrNull { it.hasToolCall() && it.toolCall.callId == approval.callId }?.toolCall
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.GppMaybe, null); Spacer(Modifier.width(8.dp)); Text("需要工具审批", fontWeight = FontWeight.Bold) }
+            Text(approval.toolName, style = MaterialTheme.typography.titleMedium)
+            Text(approval.reason)
+            Text("调用 ${approval.callId.ifBlank { "未提供" }}", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
+            if (call != null) SelectionContainer { Text(call.arguments.toString(), style = MaterialTheme.typography.bodySmall) }
+            else Text("当前已加载历史中未找到关联工具参数。确认前可先读取更早历史。", style = MaterialTheme.typography.bodySmall)
+            Text(if (approval.expiresAt.seconds > now) "${approval.expiresAt.seconds - now} 秒后到期" else "审批已过期", style = MaterialTheme.typography.labelSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { vm.decide(approval, false) }, enabled = valid) { Text("拒绝") }
+                Button(onClick = { vm.decide(approval, true) }, enabled = valid && call != null && call.toolName == approval.toolName) { Text("仅允许本次") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Confirm(title: String, text: String, action: String, confirm: () -> Unit, dismiss: () -> Unit) {
+    AlertDialog(onDismissRequest = dismiss, title = { Text(title) }, text = { Text(text) }, confirmButton = { TextButton(onClick = confirm) { Text(action) } }, dismissButton = { TextButton(onClick = dismiss) { Text("取消") } })
+}
+private fun agentState(state: AgentState): String = when (state) {
+    AgentState.AGENT_STATE_RUNNING -> "运行中"
+    AgentState.AGENT_STATE_IDLE -> "空闲"
+    AgentState.AGENT_STATE_UNLOADED -> "未加载"
+    else -> "状态未知"
+}
+private fun time(seconds: Long): String = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(seconds * 1000))

@@ -78,3 +78,14 @@ Rust 回归额外检查错误 Harness/响应类型不能抢路由、旧 ACL ack�
 Session、Inbox、Approval 等请求透传给 Harness；模拟器的模型/工具响应不代表真实执行。
 成员撤销管理 API、真实 Adapter 和移动 UI 尚未实现。发布前仍需真实上游联调。
 字段号与枚举值属于 wire 契约；删除字段必须 reserved，不得复用。
+
+## Android 客户端
+
+原生 Kotlin + Jetpack Compose 工程位于 [android/](android/README.md)，包括设备配对与认证、
+会话列表、实时聊天、审批和模型选择。使用同一份 Protobuf，服务端开发与 Chamber 启动方式保持不变。
+
+```sh
+# 需要 JDK 21 和 Android SDK 35
+make android-check
+make android-e2e
+```

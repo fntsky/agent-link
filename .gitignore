@@ -4,3 +4,7 @@
 /.venv/
 /tests/generated/
 __pycache__/
+/android/.gradle/
+/android/.kotlin/
+/android/local.properties
+/android/**/build/
