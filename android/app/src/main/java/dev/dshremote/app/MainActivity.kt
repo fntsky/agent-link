@@ -292,21 +292,23 @@ private fun Chat(state: RemoteUi, vm: RemoteViewModel, cancel: () -> Unit, aband
         }
         c.notice?.let { Banner(it) }
         val rounds = remember(c.events) { buildRounds(c.events) }
+        val liveOutputs = c.live.values.filter { it.blocks.isNotEmpty() }
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { TextButton(onClick = vm::older, enabled = active, modifier = Modifier.fillMaxWidth()) { Text("读取更早历史") } }
             items(rounds, key = { "round:${it.key}" }) { round ->
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     round.user?.let { event ->
-                        MessageCard("你", event.userMessage.contentList.joinToString("\n") { it.displayText() }, true, foldable = true)
+                        val text = event.userMessage.contentList.joinToString("\n") { it.displayText() }
+                        if (text.isNotBlank()) MessageCard("你", text, true, foldable = true)
                     }
                     if (roundHasProcess(round)) RoundSection(round)
                     finalAssistantText(round)?.let { text -> MarkdownMessage(text) }
                 }
             }
-            items(c.live.values.toList(), key = { "live:${it.attempt}" }) { output ->
-                MessageCard("正在生成 · 暂未提交", output.blocks.joinToString("") { it.displayText() }.ifEmpty { "等待首个片段…" }, false, transient = true)
+            items(liveOutputs, key = { "live:${it.attempt}" }) { output ->
+                MessageCard("正在生成 · 暂未提交", output.blocks.joinToString("") { it.displayText() }, false, transient = true)
             }
-            if (c.events.isEmpty() && c.live.isEmpty() && state.localEcho == null) item {
+            if (c.events.isEmpty() && liveOutputs.isEmpty() && state.localEcho == null) item {
                 Text("会话已打开。发送消息开始工作。", Modifier.fillMaxWidth().padding(24.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             state.localEcho?.let { echo -> item(key = "echo:${echo.id}") { MessageCard("你 · 发送中", echo.text, true, transient = true) } }
