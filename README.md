@@ -16,12 +16,12 @@ RPC 路由和连接级订阅隔离。SQLite 只保存身份、公钥、成员、
 首次启动自动生成 Harness 注册令牌，数据默认保存到 `data/`：
 
 ```sh
-HRP_LISTEN=0.0.0.0:53214 ./start.sh
+HRP_LISTEN=0.0.0.0:53323 ./start.sh
 # 查看 Harness 要填写的注册令牌：
 cat data/relay-registration-token
 ```
 
-默认仍监听 `127.0.0.1:53214`；独立局域网访问时如上覆盖为 `0.0.0.0`。
+启动脚本默认监听 `127.0.0.1:53323`；独立局域网访问时如上覆盖为 `0.0.0.0`。
 `dist/SHA256SUMS` 可用于校验二进制：`cd dist && sha256sum -c SHA256SUMS`。
 无需在部署端安装 Rust/protoc。其他系统或架构请重新编译。
 
@@ -67,7 +67,7 @@ Relay 本身不依赖 Formicary 登录会话，不把 `X-Formicary-*` 当作 HRP
 - 在本机 `chamber.toml` 的 `script` 中写 `HRP_REGISTRATION_TOKEN="自定义长令牌" ./start.sh`
   可以显式指定，优先于文件。实际令牌不能提交到公开仓库。
   修改配置后重启 Chamber；令牌文件和数据库都位于共享数据目录，升级不会清空。
-- upstream：`http://127.0.0.1:53214`，健康路径 `/healthz`。
+- upstream：`http://127.0.0.1:53323`，健康路径 `/healthz`。
 - 外部路由：`/dsh-remote`，例如 `wss://<host>/dsh-remote/ws/mobile`。
 - 数据库：`${CHAMBER_DATA_DIR}/relay.sqlite3`；未设时退回 `./data/relay.sqlite3`。
   `HRP_DATABASE` 可以显式覆盖，升级版本目录不会承载持久数据。
