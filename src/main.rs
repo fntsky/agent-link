@@ -1,3 +1,4 @@
+mod config;
 mod relay;
 mod store;
 mod wire;
@@ -159,12 +160,11 @@ async fn connection(app: App, socket: WebSocket, peer: Peer, registration: bool,
 async fn main() -> anyhow::Result<()> {
     let address = std::env::var("HRP_LISTEN").unwrap_or_else(|_| "127.0.0.1:53214".into());
     let database = std::env::var("HRP_DATABASE").unwrap_or_else(|_| "data/relay.sqlite3".into());
-    let token = std::env::var("HRP_REGISTRATION_TOKEN")
-        .map_err(|_| anyhow::anyhow!("HRP_REGISTRATION_TOKEN must be set (at least 32 bytes)"))?;
-    anyhow::ensure!(
-        token.len() >= 32,
-        "HRP_REGISTRATION_TOKEN must contain at least 32 bytes"
-    );
+    let token_file = std::env::var_os("HRP_REGISTRATION_TOKEN_FILE").map(std::path::PathBuf::from);
+    let token = config::registration_token(
+        std::env::var("HRP_REGISTRATION_TOKEN").ok(),
+        token_file.as_deref(),
+    )?;
     let app = App {
         hub: Arc::new(Mutex::new(Hub::new(store::Store::open(&database)?)?)),
         registration_hash: Sha256::digest(token.as_bytes()).into(),

@@ -11,4 +11,5 @@ fi
 cd "$project_root"
 export HRP_LISTEN="${HRP_LISTEN:-127.0.0.1:53214}"
 export HRP_DATABASE="${HRP_DATABASE:-${CHAMBER_DATA_DIR:-$project_root/data}/relay.sqlite3}"
+export HRP_REGISTRATION_TOKEN_FILE="${HRP_REGISTRATION_TOKEN_FILE:-${CHAMBER_DATA_DIR:-$project_root/data}/relay-registration-token}"
 exec "$binary"
