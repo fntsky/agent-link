@@ -35,11 +35,16 @@ data class RemoteUi(
 class RemoteViewModel(application: Application) : AndroidViewModel(application) {
     private val vault = CredentialVault(application)
     private val client = RelayClient(vault.identity)
+    private val settingsStore = SettingsStore(application)
+    private val _settings = MutableStateFlow(settingsStore.load().let { loaded ->
+        if (loaded.remoteAddress.isBlank()) loaded.copy(remoteAddress = vault.profile?.endpoint?.removeSuffix("/ws/mobile") ?: "") else loaded
+    })
+    val settings = _settings.asStateFlow()
     private var action: Job? = null
     private var reconnectJob: Job? = null
     private var reconnectAttempt = 0
     private var manuallyDisconnected = false
-    private val _ui = MutableStateFlow(RemoteUi(address = vault.profile?.endpoint?.removeSuffix("/ws/mobile") ?: "", pendingSend = vault.pendingSend))
+    private val _ui = MutableStateFlow(RemoteUi(address = _settings.value.remoteAddress, pendingSend = vault.pendingSend))
     val ui = _ui.asStateFlow()
     init {
         viewModelScope.launch {
@@ -73,7 +78,23 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         if (profile.harness.isBlank()) return
         val address = profile.endpoint.removeSuffix("/ws/mobile")
         if (address.isBlank()) return
+        // A saved address for a different relay means the old profile needs a
+        // fresh pairing; do not silently reconnect to the old endpoint.
+        if (_settings.value.remoteAddress.isNotBlank() && _settings.value.remoteAddress != address) return
         connect(address, "")
+    }
+    fun setThemeMode(mode: ThemeMode) = updateSettings { it.copy(themeMode = mode) }
+    fun setPalette(palette: AccentPalette) = updateSettings { it.copy(palette = palette) }
+    fun setFontScale(scale: Float) = updateSettings { it.copy(fontScale = scale.coerceIn(0.85f, 1.4f)) }
+    fun saveRemoteAddress(value: String) {
+        val address = value.trim()
+        updateSettings { it.copy(remoteAddress = address) }
+        _ui.update { it.copy(address = address, notice = "远程地址已保存") }
+    }
+    private fun updateSettings(transform: (AppSettings) -> AppSettings) {
+        val next = transform(_settings.value)
+        _settings.value = next
+        settingsStore.save(next)
     }
     private fun launchWork(block: suspend () -> Unit) {
         if (ui.value.busy) return
@@ -104,6 +125,8 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     fun connect(address: String, pairingCode: String) = launchWork {
         manuallyDisconnected = false
         val endpoint = mobileEndpoint(address, BuildConfig.DEBUG)
+        updateSettings { it.copy(remoteAddress = address.trim()) }
+        _ui.update { it.copy(address = address.trim()) }
         var profile = vault.profile?.takeIf { it.endpoint == endpoint }
         val code = pairingCode.trim().ifEmpty { profile?.pairingCode.orEmpty() }
         require(code.isNotBlank() || !profile?.harness.isNullOrBlank()) { "首次连接需要输入 Harness 提供的配对码" }

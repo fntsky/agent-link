@@ -13,6 +13,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -28,6 +29,8 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,10 +86,20 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             val state by remote.ui.collectAsStateWithLifecycle()
-            val dark = isSystemInDarkTheme()
-            val colors = if (dark) darkColorScheme(primary = Color(0xFF9AD9C6), secondary = Color(0xFFEDBB8B), background = Color(0xFF101917), surface = Color(0xFF16211E))
-                else lightColorScheme(primary = Color(0xFF186C58), secondary = Color(0xFF9A5425), background = Color(0xFFF6F7F2), surface = Color(0xFFFCFDF8), surfaceVariant = Color(0xFFE9EDE5))
-            MaterialTheme(colorScheme = colors) { RemoteApp(state, remote) }
+            val settings by remote.settings.collectAsStateWithLifecycle()
+            val systemDark = isSystemInDarkTheme()
+            val dark = when (settings.themeMode) {
+                ThemeMode.SYSTEM -> systemDark
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+            }
+            val colors = appColorScheme(settings.palette, dark)
+            val baseDensity = LocalDensity.current
+            MaterialTheme(colorScheme = colors) {
+                CompositionLocalProvider(LocalDensity provides Density(baseDensity.density, settings.fontScale)) {
+                    RemoteApp(state, settings, remote)
+                }
+            }
         }
     }
     override fun onStart() {
@@ -96,26 +109,39 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun RemoteApp(state: RemoteUi, vm: RemoteViewModel) {
+private fun RemoteApp(state: RemoteUi, settings: AppSettings, vm: RemoteViewModel) {
     var createDialog by remember { mutableStateOf(false) }
     var cancelDialog by remember { mutableStateOf(false) }
     var abandonDialog by remember { mutableStateOf(false) }
-    BackHandler(state.conversation != null && state.connected) { if (!state.busy) vm.leave() }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    BackHandler(showSettings || (state.conversation != null && state.connected)) {
+        if (showSettings) showSettings = false
+        else if (!state.busy) vm.leave()
+    }
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().safeDrawingPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (state.conversation != null && state.connected) IconButton(onClick = vm::leave, enabled = !state.busy) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回会话列表") }
+                if (showSettings) IconButton(onClick = { showSettings = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
+                else if (state.conversation != null && state.connected) IconButton(onClick = vm::leave, enabled = !state.busy) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回会话列表") }
                 else Icon(Icons.Default.Terminal, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                    Text(state.conversation?.session?.title?.ifBlank { "会话" }?.takeIf { state.connected } ?: "DSH Remote", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(state.status, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        if (showSettings) "设置" else state.conversation?.session?.title?.ifBlank { "会话" }?.takeIf { state.connected } ?: "DSH Remote",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(if (showSettings) "主题、字体与远程地址" else state.status, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                if (state.connected) IconButton(onClick = vm::disconnect, enabled = !state.busy) { Icon(Icons.Default.LinkOff, "断开连接") }
+                if (!showSettings && state.connected) IconButton(onClick = vm::disconnect, enabled = !state.busy) { Icon(Icons.Default.LinkOff, "断开连接") }
+                if (!showSettings) IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "设置") }
             }
             if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             state.error?.let { Banner(it, true) }
             state.notice?.let { Banner(it) }
             when {
+                showSettings -> SettingsScreen(state, settings, vm, Modifier.weight(1f))
                 !state.connected -> ConnectPanel(state, vm, Modifier.weight(1f))
                 state.conversation == null -> Directory(state, vm, { createDialog = true }, Modifier.weight(1f))
                 else -> Chat(state, vm, { cancelDialog = true }, { abandonDialog = true }, Modifier.weight(1f))
@@ -155,6 +181,95 @@ private fun Banner(text: String, error: Boolean = false) {
 }
 
 @Composable
+private fun SettingsScreen(state: RemoteUi, settings: AppSettings, vm: RemoteViewModel, modifier: Modifier) {
+    var address by remember(settings.remoteAddress, state.address) {
+        mutableStateOf(settings.remoteAddress.ifBlank { state.address })
+    }
+    Column(
+        modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        SettingsSection("外观")
+        Text("主题模式", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(
+                ThemeMode.SYSTEM to "跟随系统",
+                ThemeMode.LIGHT to "浅色",
+                ThemeMode.DARK to "深色",
+            ).forEach { (mode, label) ->
+                FilterChip(selected = settings.themeMode == mode, onClick = { vm.setThemeMode(mode) }, label = { Text(label) })
+            }
+        }
+        Text("主题色", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(
+                AccentPalette.TEAL to "青绿",
+                AccentPalette.BLUE to "蓝色",
+                AccentPalette.PURPLE to "紫色",
+                AccentPalette.ORANGE to "橙色",
+            ).forEach { (palette, label) ->
+                FilterChip(selected = settings.palette == palette, onClick = { vm.setPalette(palette) }, label = { Text(label) })
+            }
+        }
+        Text("字体大小", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(
+                0.9f to "小",
+                1f to "标准",
+                1.15f to "大",
+                1.3f to "特大",
+            ).forEach { (scale, label) ->
+                FilterChip(selected = kotlin.math.abs(settings.fontScale - scale) < 0.01f, onClick = { vm.setFontScale(scale) }, label = { Text(label) })
+            }
+        }
+        HorizontalDivider()
+        SettingsSection("远程连接")
+        OutlinedTextField(
+            value = address,
+            onValueChange = { address = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Relay 地址") },
+            placeholder = { Text("wss://example.com/dsh-remote") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            singleLine = true,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Button(onClick = { vm.saveRemoteAddress(address) }, enabled = address.isNotBlank()) { Text("保存地址") }
+            if (state.connected) OutlinedButton(onClick = vm::disconnect) { Text("断开连接") }
+            Text(state.status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text("更换 Relay 地址后，原配对关系不再适用；需要重新输入新的配对码。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        HorizontalDivider()
+        SettingsSection("关于")
+        Text("DSH Remote v${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)
+        Text("Markdown: Markwon · 前台服务保活 · 自动重连", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun SettingsSection(title: String) {
+    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+}
+
+private fun appColorScheme(palette: AccentPalette, dark: Boolean): ColorScheme {
+    return if (dark) {
+        when (palette) {
+            AccentPalette.TEAL -> darkColorScheme(primary = Color(0xFF9AD9C6), secondary = Color(0xFFEDBB8B), background = Color(0xFF101917), surface = Color(0xFF16211E), surfaceVariant = Color(0xFF22302B))
+            AccentPalette.BLUE -> darkColorScheme(primary = Color(0xFF9CC7FF), secondary = Color(0xFFC4B5FD), background = Color(0xFF0C1420), surface = Color(0xFF131D2B), surfaceVariant = Color(0xFF1D2A3A))
+            AccentPalette.PURPLE -> darkColorScheme(primary = Color(0xFFC9B8FF), secondary = Color(0xFFFF9CCF), background = Color(0xFF140F24), surface = Color(0xFF1D1730), surfaceVariant = Color(0xFF2A2140))
+            AccentPalette.ORANGE -> darkColorScheme(primary = Color(0xFFFFB86B), secondary = Color(0xFF7DD3FC), background = Color(0xFF1A1008), surface = Color(0xFF24180D), surfaceVariant = Color(0xFF332315))
+        }
+    } else {
+        when (palette) {
+            AccentPalette.TEAL -> lightColorScheme(primary = Color(0xFF186C58), secondary = Color(0xFF9A5425), background = Color(0xFFF6F7F2), surface = Color(0xFFFCFDF8), surfaceVariant = Color(0xFFE9EDE5))
+            AccentPalette.BLUE -> lightColorScheme(primary = Color(0xFF1F6FEB), secondary = Color(0xFF7C5CFF), background = Color(0xFFF4F7FB), surface = Color(0xFFFFFFFF), surfaceVariant = Color(0xFFE6EDF7))
+            AccentPalette.PURPLE -> lightColorScheme(primary = Color(0xFF6D4AFF), secondary = Color(0xFFC2418A), background = Color(0xFFF8F5FF), surface = Color(0xFFFFFFFF), surfaceVariant = Color(0xFFEDE8FA))
+            AccentPalette.ORANGE -> lightColorScheme(primary = Color(0xFFB45309), secondary = Color(0xFF0F766E), background = Color(0xFFFFF9F3), surface = Color(0xFFFFFFFF), surfaceVariant = Color(0xFFF7E8DA))
+        }
+    }
+}
+
+@Composable
 private fun ConnectPanel(state: RemoteUi, vm: RemoteViewModel, modifier: Modifier) {
     var address by rememberSaveable(state.address) { mutableStateOf(state.address) }
     // Pair codes are intentionally not put in saved-instance-state or the clipboard.
@@ -173,7 +288,7 @@ private fun ConnectPanel(state: RemoteUi, vm: RemoteViewModel, modifier: Modifie
 @Composable
 private fun Directory(state: RemoteUi, vm: RemoteViewModel, create: () -> Unit, modifier: Modifier) {
     var menu by remember { mutableStateOf(false) }
-    var collapsed by remember { mutableStateOf(setOf<String>()) }
+    var expanded by remember { mutableStateOf(setOf<String>()) }
     val groups = state.sessions
         .groupBy { if (it.hasWorkspace()) it.workspace else "" }
         .toList()
@@ -207,10 +322,10 @@ private fun Directory(state: RemoteUi, vm: RemoteViewModel, create: () -> Unit, 
         } else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             groups.forEach { (workspace, sessions) ->
                 val key = workspace.ifBlank { "" }
-                val open = key !in collapsed
+                val open = key in expanded
                 item(key = "workspace:$key") {
                     WorkspaceHeader(workspaceLabel(key), sessions.size, open) {
-                        collapsed = if (open) collapsed + key else collapsed - key
+                        expanded = if (open) expanded - key else expanded + key
                     }
                 }
                 if (open) {
