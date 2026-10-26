@@ -77,10 +77,6 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         if (::remote.isInitialized) remote.autoConnect()
     }
-    override fun onStop() {
-        super.onStop()
-        if (::remote.isInitialized && !isChangingConfigurations) remote.background()
-    }
 }
 
 @Composable
@@ -379,16 +375,16 @@ private fun RoundSection(round: ChatRound) {
     Column(Modifier.fillMaxWidth()) {
         Surface(
             Modifier.fillMaxWidth().clickable { open = !open },
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(9.dp),
             color = MaterialTheme.colorScheme.surfaceVariant,
         ) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(if (completed) Icons.Default.CheckCircle else Icons.Default.HourglassEmpty, null, tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(10.dp))
-                Text(label, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(if (completed) Icons.Default.CheckCircle else Icons.Default.HourglassEmpty, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(7.dp))
+                Text(label, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium)
                 if (tools > 0) Text("$tools 步", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.width(6.dp))
-                Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (open) "收起本轮" else "展开本轮")
+                Spacer(Modifier.width(4.dp))
+                Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (open) "收起本轮" else "展开本轮", modifier = Modifier.size(16.dp))
             }
         }
         if (open) {

@@ -36,6 +36,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     private val vault = CredentialVault(application)
     private val client = RelayClient(vault.identity)
     private var action: Job? = null
+    private var manuallyDisconnected = false
     private val _ui = MutableStateFlow(RemoteUi(address = vault.profile?.endpoint?.removeSuffix("/ws/mobile") ?: "", pendingSend = vault.pendingSend))
     val ui = _ui.asStateFlow()
     init {
@@ -55,7 +56,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     }
     /** Reconnect a previously paired device without making the user tap Connect. */
     fun autoConnect() {
-        if (ui.value.connected || ui.value.busy) return
+        if (manuallyDisconnected || ui.value.connected || ui.value.busy) return
         val profile = vault.profile ?: return
         if (profile.harness.isBlank()) return
         val address = profile.endpoint.removeSuffix("/ws/mobile")
@@ -73,6 +74,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
     fun connect(address: String, pairingCode: String) = launchWork {
+        manuallyDisconnected = false
         val endpoint = mobileEndpoint(address, BuildConfig.DEBUG)
         var profile = vault.profile?.takeIf { it.endpoint == endpoint }
         val code = pairingCode.trim().ifEmpty { profile?.pairingCode.orEmpty() }
@@ -98,9 +100,12 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         // Reading the directory is the default post-connect behavior.
         loadSessions(false)
     }
-    fun disconnect() { action?.cancel(); client.disconnect(); _ui.update { it.copy(localEcho = null) } }
-    // Backgrounding closes transport and credentials bound to it, never the remote Agent.
-    fun background() { action?.cancel(); client.disconnect() }
+    fun disconnect() {
+        manuallyDisconnected = true
+        action?.cancel()
+        client.disconnect()
+        _ui.update { it.copy(localEcho = null) }
+    }
     private suspend fun loadSessions(next: Boolean) {
         var result: SessionListResponse? = null
         for (attempt in 0..5) {
