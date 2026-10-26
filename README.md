@@ -2,7 +2,7 @@
 
 面向移动端和 Agent Harness 的远程连接项目：共享 HRP 协议、Rust WebSocket Relay、原生 Android 客户端，以及可扩展的 Harness 适配器。
 
-GitHub：[fntsky/agent-link](https://github.com/fntsky/agent-link)。三个分支分别为 `delay`（Relay，默认）、`android`（Kotlin 客户端）、`dsh`（DeepSeek Harness 插件）。
+GitHub：[fntsky/agent-link](https://github.com/fntsky/agent-link)。三个分支分别为 `relay`（Relay，默认）、`android`（Kotlin 客户端）、`dsh`（DeepSeek Harness 插件）。
 本分支提供 Relay，可独立启动或作为 Formicary Chamber 运行。
 HRP v1.1 是设计文档修订号，wire major 仍为 1。
 
@@ -75,7 +75,7 @@ Relay 本身不依赖 Formicary 登录会话，不把 `X-Formicary-*` 当作 HRP
 
 无需改变正常开发工作流。Chamber 负责启动及反向代理。
 仓库更名为 Agent Link；已有 Chamber 名称、路由 `/dsh-remote` 和二进制名保留兼容。
-从 Formicary 导入公开仓库时选择 `fntsky/agent-link` 的 `delay` 分支。
+从 Formicary 导入公开仓库时选择 `fntsky/agent-link` 的 `relay` 分支。
 
 ## 测试
 
