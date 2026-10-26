@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+data class LocalEcho(val id: String, val text: String)
 data class RemoteUi(
     val address: String = "",
     val connected: Boolean = false,
@@ -29,6 +30,7 @@ data class RemoteUi(
     val model: ModelSelection? = null,
     val pairing: PairCreateResponse? = null,
     val pendingSend: PendingSend? = null,
+    val localEcho: LocalEcho? = null,
 )
 class RemoteViewModel(application: Application) : AndroidViewModel(application) {
     private val vault = CredentialVault(application)
@@ -38,7 +40,27 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     val ui = _ui.asStateFlow()
     init {
         viewModelScope.launch { client.link.collect { link -> _ui.update { it.copy(connected = link.connected, status = link.message) } } }
-        viewModelScope.launch { client.conversation.collect { c -> _ui.update { it.copy(conversation = c) } } }
+        viewModelScope.launch { client.conversation.collect { c ->
+            _ui.update { current ->
+                val echo = current.localEcho
+                val shown = echo != null && c != null && c.events.any { event ->
+                    event.hasUserMessage() && event.userMessage.contentList.any { block ->
+                        block.valueCase == ContentBlock.ValueCase.TEXT && block.text == echo.text
+                    }
+                }
+                current.copy(conversation = c, localEcho = if (shown) null else current.localEcho)
+            }
+        } }
+        viewModelScope.launch { delay(120); autoConnect() }
+    }
+    /** Reconnect a previously paired device without making the user tap Connect. */
+    fun autoConnect() {
+        if (ui.value.connected || ui.value.busy) return
+        val profile = vault.profile ?: return
+        if (profile.harness.isBlank()) return
+        val address = profile.endpoint.removeSuffix("/ws/mobile")
+        if (address.isBlank()) return
+        connect(address, "")
     }
     private fun launchWork(block: suspend () -> Unit) {
         if (ui.value.busy) return
@@ -71,13 +93,15 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
             val relay = client.authenticate(profile.relayId.takeIf { it.isNotEmpty() })
             vault.profile = profile.copy(relayId = relay, pairingCode = "", pairingOperation = "")
             client.selectHarness(profile.harness)
-            _ui.update { it.copy(notice = "身份已验证。点击读取会话，按需获取历史。") }
+            _ui.update { it.copy(notice = "身份已验证，正在读取会话…") }
         } catch (e: Exception) { client.disconnect(); throw e }
+        // Reading the directory is the default post-connect behavior.
+        loadSessions(false)
     }
-    fun disconnect() { action?.cancel(); client.disconnect() }
+    fun disconnect() { action?.cancel(); client.disconnect(); _ui.update { it.copy(localEcho = null) } }
     // Backgrounding closes transport and credentials bound to it, never the remote Agent.
     fun background() { action?.cancel(); client.disconnect() }
-    fun refresh(next: Boolean = false) = launchWork {
+    private suspend fun loadSessions(next: Boolean) {
         var result: SessionListResponse? = null
         for (attempt in 0..5) {
             try { result = client.sessions(if (next) ui.value.nextPage else null); break }
@@ -88,6 +112,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         try { val capabilities = client.capabilities().operationsList.toSet(); _ui.update { it.copy(capabilities = capabilities) } }
         catch (e: RelayException) { if (e.code != ErrorCode.ERROR_CODE_UNSUPPORTED_OPERATION) throw e }
     }
+    fun refresh(next: Boolean = false) = launchWork { loadSessions(next) }
     private suspend fun <T> mutate(key: String, action: suspend (String) -> T): T {
         val scope = "${vault.profile?.endpoint}|${client.activeHarness}|$key"
         val result = action(vault.operation(scope))
@@ -102,7 +127,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     }
     fun follow(session: String) = launchWork { client.follow(session); _ui.update { it.copy(model = null, models = null) } }
     fun resync() { ui.value.conversation?.session?.sessionId?.let(::follow) }
-    fun leave() = launchWork { client.leave(); _ui.update { it.copy(models = null, model = null) } }
+    fun leave() = launchWork { client.leave(); _ui.update { it.copy(models = null, model = null, localEcho = null) } }
     fun older() = launchWork { if (!client.older()) _ui.update { it.copy(notice = "已读取到最早的可用历史") } }
     fun send(text: String, mode: SendMode) = launchWork {
         val c = requireNotNull(ui.value.conversation)
@@ -120,7 +145,14 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         require(send.endpoint == vault.profile?.endpoint && send.harness == client.activeHarness) { "请连接原 Relay 和 Harness 再重试" }
         val result = client.send(send.session, send.text, SendMode.forNumber(send.mode), send.operation, send.message)
         vault.pendingSend = null
-        _ui.update { it.copy(pendingSend = null, notice = "消息回执：${result.state.name.removePrefix("DELIVERY_STATE_")}；执行结果由会话事件确认") }
+        val alreadyVisible = ui.value.conversation?.events?.any { event ->
+            event.hasUserMessage() && event.userMessage.contentList.any { block -> block.valueCase == ContentBlock.ValueCase.TEXT && block.text == send.text }
+        } == true
+        _ui.update { it.copy(pendingSend = null, localEcho = if (alreadyVisible) null else LocalEcho(send.message, send.text), notice = "消息回执：${result.state.name.removePrefix("DELIVERY_STATE_")}；执行结果由会话事件确认") }
+        viewModelScope.launch {
+            delay(30_000)
+            _ui.update { if (it.localEcho?.id == send.message) it.copy(localEcho = null) else it }
+        }
     }
     fun abandonSend() { vault.pendingSend = null; _ui.update { it.copy(pendingSend = null, notice = "已放弃本地重试；远端可能已经接受这条消息") } }
     fun resume() = launchWork {

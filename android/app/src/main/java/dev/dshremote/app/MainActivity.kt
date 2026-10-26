@@ -71,6 +71,10 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(colorScheme = colors) { RemoteApp(state, remote) }
         }
     }
+    override fun onStart() {
+        super.onStart()
+        if (::remote.isInitialized) remote.autoConnect()
+    }
     override fun onStop() {
         super.onStop()
         if (::remote.isInitialized && !isChangingConfigurations) remote.background()
@@ -154,6 +158,11 @@ private fun ConnectPanel(state: RemoteUi, vm: RemoteViewModel, modifier: Modifie
 @Composable
 private fun Directory(state: RemoteUi, vm: RemoteViewModel, create: () -> Unit, modifier: Modifier) {
     var menu by remember { mutableStateOf(false) }
+    var collapsed by remember { mutableStateOf(setOf<String>()) }
+    val groups = state.sessions
+        .groupBy { if (it.hasWorkspace()) it.workspace else "" }
+        .toList()
+        .sortedBy { (workspace, _) -> workspaceLabel(workspace) }
     Column(modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("会话", Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -163,6 +172,7 @@ private fun Directory(state: RemoteUi, vm: RemoteViewModel, create: () -> Unit, 
                 DropdownMenu(menu, { menu = false }) {
                     DropdownMenuItem(text = { Text("绑定我的另一台设备") }, onClick = { menu = false; vm.pair(PairMode.PAIR_MODE_DEVICE_LINK) })
                     DropdownMenuItem(text = { Text("邀请独立用户") }, onClick = { menu = false; vm.pair(PairMode.PAIR_MODE_INVITE) })
+                    DropdownMenuItem(text = { Text("断开连接") }, onClick = { menu = false; vm.disconnect() })
                 }
             }
             FilledTonalIconButton(onClick = create, enabled = !state.busy) { Icon(Icons.Default.Add, "新建会话") }
@@ -173,29 +183,63 @@ private fun Directory(state: RemoteUi, vm: RemoteViewModel, create: () -> Unit, 
             Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Icon(Icons.Default.Forum, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.height(16.dp))
-                Text(if (!state.directoryLoaded) "准备好时，再打开会话" else "工作区还没有会话", style = MaterialTheme.typography.titleLarge)
+                Text(if (!state.directoryLoaded) "正在读取会话…" else "工作区还没有会话", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(8.dp))
-                Text(if (!state.directoryLoaded) "历史留在 Harness，点击后才会读取。" else "在工作区或这里创建会话开始工作。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (!state.directoryLoaded) "连接后会自动读取，无需手动刷新。" else "在工作区或这里创建会话开始工作。", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(20.dp))
-                Button(onClick = { if (!state.directoryLoaded) vm.refresh() else create() }, enabled = !state.busy) { Text(if (!state.directoryLoaded) "读取会话" else "新建会话") }
+                Button(onClick = { if (!state.directoryLoaded) vm.refresh() else create() }, enabled = !state.busy) { Text(if (!state.directoryLoaded) "重新读取" else "新建会话") }
             }
         } else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(state.sessions, key = { it.sessionId }) { session ->
-                Card(onClick = { vm.follow(session.sessionId) }, enabled = !state.busy, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.ChatBubbleOutline, null, tint = MaterialTheme.colorScheme.primary)
-                        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
-                            Text(session.title.ifBlank { "未命名会话" }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Spacer(Modifier.height(4.dp))
-                            Text("${agentState(session.agentState)} · 已提交 ${session.committedSeq}" + if (session.hasParentSessionId()) " · 分支会话" else "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Icon(Icons.Default.ChevronRight, "进入会话")
+            groups.forEach { (workspace, sessions) ->
+                val key = workspace.ifBlank { "" }
+                val open = key !in collapsed
+                item(key = "workspace:$key") {
+                    WorkspaceHeader(workspaceLabel(key), sessions.size, open) {
+                        collapsed = if (open) collapsed + key else collapsed - key
                     }
+                }
+                if (open) {
+                    items(sessions, key = { it.sessionId }) { session -> SessionCard(session, state.busy, vm) }
                 }
             }
             state.nextPage?.let { item { TextButton(onClick = { vm.refresh(true) }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("加载更多会话") } } }
         }
     }
+}
+
+@Composable
+private fun WorkspaceHeader(label: String, count: Int, expanded: Boolean, toggle: () -> Unit) {
+    Surface(Modifier.fillMaxWidth().clickable(onClick = toggle), shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.FolderOpen, null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(10.dp))
+            Text(label, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("$count", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(6.dp))
+            Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (expanded) "折叠工作空间" else "展开工作空间")
+        }
+    }
+}
+
+@Composable
+private fun SessionCard(session: SessionSummary, busy: Boolean, vm: RemoteViewModel) {
+    Card(onClick = { vm.follow(session.sessionId) }, enabled = !busy, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.ChatBubbleOutline, null, tint = MaterialTheme.colorScheme.primary)
+            Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+                Text(session.title.ifBlank { "未命名会话" }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(4.dp))
+                Text("${agentState(session.agentState)} · 已提交 ${session.committedSeq}" + if (session.hasParentSessionId()) " · 分支会话" else "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(Icons.Default.ChevronRight, "进入会话")
+        }
+    }
+}
+
+private fun workspaceLabel(workspace: String): String {
+    if (workspace.isBlank()) return "其他会话"
+    val normalized = workspace.replace('\\', '/').trimEnd('/')
+    return normalized.substringAfterLast('/').ifBlank { workspace }
 }
 
 @Composable
@@ -206,6 +250,17 @@ private fun Chat(state: RemoteUi, vm: RemoteViewModel, cancel: () -> Unit, aband
     var more by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val active = state.connected && c.following && !c.needsResync && !state.busy
+    LaunchedEffect(c.session.sessionId) {
+        withFrameNanos { }
+        withFrameNanos { }
+        if (listState.layoutInfo.totalItemsCount > 0) listState.scrollToItem(listState.layoutInfo.totalItemsCount - 1)
+    }
+    LaunchedEffect(state.localEcho?.id) {
+        if (state.localEcho != null) {
+            withFrameNanos { }
+            if (listState.layoutInfo.totalItemsCount > 0) listState.animateScrollToItem(listState.layoutInfo.totalItemsCount - 1)
+        }
+    }
     Column(modifier.fillMaxWidth().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(if (c.following) "正在关注 · 已提交 ${c.cursor}" else "已停止关注", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
@@ -227,9 +282,10 @@ private fun Chat(state: RemoteUi, vm: RemoteViewModel, cancel: () -> Unit, aband
             items(c.live.values.toList(), key = { "live:${it.attempt}" }) { output ->
                 MessageCard("正在生成 · 暂未提交", output.blocks.joinToString("") { it.displayText() }.ifEmpty { "等待首个片段…" }, false, transient = true)
             }
-            if (c.events.isEmpty() && c.live.isEmpty()) item {
+            if (c.events.isEmpty() && c.live.isEmpty() && state.localEcho == null) item {
                 Text("会话已打开。发送消息开始工作。", Modifier.fillMaxWidth().padding(24.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            state.localEcho?.let { echo -> item(key = "echo:${echo.id}") { MessageCard("你 · 发送中", echo.text, true, transient = true) } }
             items(c.approvals.values.toList(), key = { "approval:${it.approvalId}" }) { approval -> ApprovalCard(approval, c, active, vm) }
         }
         state.pendingSend?.let { pending ->
