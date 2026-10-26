@@ -12,6 +12,9 @@ RelayForward。认证、注册、配对等 Relay 本地 RPC 的 route_id 为空�
 RelayForward.principal 是已验证用户/设备/角色/ACL 版本。客户端不能自报这些字段。
 
 Harness 认证成功后，Relay 先发 auth.prove 响应，再发内部 membership.snapshot 请求。
+`member_revoke` 是 Relay 本地 RPC（route_id 为空）：只有已认证 Harness 能移除本
+Harness 的成员；事务成功后 Relay 提升 ACL 版本、关闭该设备连接、向 Harness 发送
+RelayConnectionClosed 并重新推送 membership.snapshot。
 该内部请求 route_id 非空，无用户 principal；Harness 原子应用完整 ACL 并响应
 MembershipSnapshotResponse。只有响应版本与当前版本一致时才开放手机业务转发。
 新成员加入、Harness 重连都会重新同步；旧版本 ack 不能打开闸门。
@@ -54,9 +57,9 @@ Relay 不缓存 Session 正文或审批 token。
 
 ## 当前实现边界
 
-没有成员撤销管理接口，因此不宣称已验证在线撤权闭环。完整 ACL snapshot 已有版本
-屏障；以后加入撤权入口时，还须同时关闭该成员订阅、失效审批及应用 Harness ACL。
-不得在运行中手动修改数据库作为撤权方式。
+成员撤销已实现：Harness 可移除任一成员（含 owner），Relay 同事务提升 ACL 版本、
+关闭该设备连接并重发 membership.snapshot；该设备的后续业务请求返回 FORBIDDEN。
+Harness 收到 RelayConnectionClosed 后清理该 connection 的订阅与临时审批状态。
 
 HarnessStatus.adapter_version 暂为空；实际 Adapter 能力通过 capabilities.get 透传查询。
 未绑定用户不能查询 HarnessStatus。现有 Harness 重复上线返回 AGENT_BUSY，避免隐式

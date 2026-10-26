@@ -386,6 +386,40 @@ impl Hub {
                     acl_version: self.store.version(h)?,
                 })))
             }
+            Req::MemberRevoke(r) => {
+                let Some(Identity::Harness(h)) = identity else {
+                    return Err(ErrorCode::Forbidden);
+                };
+                require(h == r.harness_id, ErrorCode::Forbidden)?;
+                let targets = self.revocation_targets(&h, &r.device_id);
+                let result = self.store.revoke_member(&r, &h)?;
+                if matches!(&result, Res::MemberRevoke(response) if response.removed) {
+                    for (cid, principal) in targets {
+                        if let Some(connection) = self.online.get(&h).map(|o| o.connection.clone())
+                        {
+                            let event = Envelope {
+                                version: 1,
+                                request_id: id(),
+                                harness_id: Some(h.clone()),
+                                body: Some(Body::Event(Event {
+                                    operation: Some(event::Operation::RelayConnectionClosed(
+                                        RelayConnectionClosed {
+                                            connection_id: cid.clone(),
+                                        },
+                                    )),
+                                })),
+                                ..Default::default()
+                            };
+                            self.send(&connection, event, "", Some(principal), &cid);
+                        }
+                        if let Some(client) = self.clients.get(&cid) {
+                            let _ = client.close.send(true);
+                        }
+                    }
+                    self.sync_members(&h)?;
+                }
+                Ok(Some(result))
+            }
             Req::MembershipSnapshot(_) | Req::Unsupported(_) => {
                 Err(ErrorCode::UnsupportedOperation)
             }
@@ -466,6 +500,32 @@ impl Hub {
                 Ok(None)
             }
         }
+    }
+    /// Principal and connection targets captured before the membership row is
+    /// deleted. The event must be attributable to the membership that existed
+    /// when the device connected, even though it is already gone after commit.
+    fn revocation_targets(&self, h: &str, device_id: &str) -> Vec<(String, Principal)> {
+        let Ok(member) = self.store.member(h, device_id) else {
+            return Vec::new();
+        };
+        let Ok(version) = self.store.version(h) else {
+            return Vec::new();
+        };
+        let principal = Principal {
+            user_id: member.user,
+            device_id: device_id.to_owned(),
+            roles: member.roles,
+            acl_version: version,
+        };
+        self.clients
+            .iter()
+            .filter_map(|(cid, client)| match &client.identity {
+                Some(Identity::Mobile(d)) if d == device_id => {
+                    Some((cid.clone(), principal.clone()))
+                }
+                _ => None,
+            })
+            .collect()
     }
     fn sync_members(&mut self, h: &str) -> Result<()> {
         let Some(online) = self.online.get_mut(h) else {
@@ -977,6 +1037,60 @@ mod tests {
             })),
             ..Default::default()
         }
+    }
+    #[test]
+    fn member_revoke_closes_device_and_pushes_fresh_snapshot() {
+        let (mut hub, mut harness, mobile) = fixture();
+        let op = Req::MemberRevoke(MemberRevokeRequest {
+            mutation: Some(Mutation {
+                client_operation_id: "revoke-d".into(),
+            }),
+            harness_id: "h".into(),
+            device_id: "d".into(),
+        });
+        hub.receive(
+            &harness.id,
+            &HarnessForward {
+                route_id: String::new(),
+                envelope: Some(request(op)),
+            }
+            .encode_to_vec(),
+        )
+        .unwrap();
+        assert!(*mobile.closed.borrow());
+        assert!(hub.store.member("h", "d").is_err());
+        assert_eq!(hub.store.version("h").unwrap(), 2);
+        let mut events = 0;
+        let mut snapshots = 0;
+        let mut revoked = false;
+        while let Ok(bytes) = harness.rx.try_recv() {
+            let forward = RelayForward::decode(bytes.as_slice()).unwrap();
+            match forward.envelope.unwrap().body.unwrap() {
+                Body::Event(event) => {
+                    if let Some(event::Operation::RelayConnectionClosed(closed)) = event.operation {
+                        assert_eq!(closed.connection_id, mobile.id);
+                        events += 1;
+                    }
+                }
+                Body::Request(request) => {
+                    if let Some(Req::MembershipSnapshot(snapshot)) = request.operation {
+                        assert!(snapshot.members.is_empty());
+                        snapshots += 1;
+                    }
+                }
+                Body::Response(response) => {
+                    if let Some(Res::MemberRevoke(result)) = response.operation {
+                        assert!(result.removed);
+                        assert_eq!(result.acl_version, 2);
+                        revoked = true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(events, 1);
+        assert_eq!(snapshots, 1);
+        assert!(revoked);
     }
     #[test]
     fn route_rejects_other_harness_and_mismatched_response_type() {

@@ -103,5 +103,5 @@ Rust 回归额外检查错误 Harness/响应类型不能抢路由、旧 ACL ack�
 
 当前是可联调的 Relay 实现，Python Harness 是测试替身，尚未接入真实 DeepSeek Harness。
 Session、Inbox、Approval 等请求透传给 Harness；模拟器的模型/工具响应不代表真实执行。
-成员撤销管理 API、真实 Adapter 和移动 UI 尚未实现。发布前仍需真实上游联调。
+成员撤销 API 已实现（Harness 调用）；真实 Adapter 和移动 UI 仍在各自分支推进。发布前仍需真实上游联调。
 字段号与枚举值属于 wire 契约；删除字段必须 reserved，不得复用。
