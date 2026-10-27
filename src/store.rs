@@ -203,26 +203,37 @@ impl Store {
                 ))?;
                 require(pending == 0, ErrorCode::AgentBusy)?;
             }
-            let code = hex::encode(random_bytes());
-            let pid = id();
             let expires = now() + 300;
             let role = if r.mode == 1 || (r.mode == 2 && owner) {
                 1
             } else {
                 2
             };
-            db(self.0.execute(
-                "INSERT INTO pairs VALUES (?1,?2,?3,?4,?5,?6,?7,0)",
-                params![
-                    hash(code.as_bytes()),
-                    pid,
-                    r.harness_id,
-                    r.mode,
-                    if r.mode == 2 { user } else { None },
-                    role,
-                    expires
-                ],
-            ))?;
+            // The six-character code space is small enough that a collision with
+            // a still-pending code is possible in principle; retry instead of
+            // surfacing a primary-key failure.
+            let mut created = None;
+            for _ in 0..8 {
+                let code = pairing_code();
+                let pid = id();
+                let inserted = db(self.0.execute(
+                    "INSERT OR IGNORE INTO pairs VALUES (?1,?2,?3,?4,?5,?6,?7,0)",
+                    params![
+                        hash(code.as_bytes()),
+                        pid,
+                        r.harness_id,
+                        r.mode,
+                        if r.mode == 2 { user } else { None },
+                        role,
+                        expires
+                    ],
+                ))?;
+                if inserted == 1 {
+                    created = Some((code, pid));
+                    break;
+                }
+            }
+            let (code, pid) = created.ok_or(ErrorCode::Internal)?;
             self.save(
                 scope,
                 op,
@@ -263,9 +274,10 @@ impl Store {
         if let Some(c) = self.cached(&scope, op, &digest)? {
             return c.operation.ok_or(ErrorCode::Internal);
         }
+        let code = normalize_pairing_code(&r.pairing_code);
         db(self.0.execute_batch("BEGIN IMMEDIATE"))?;
         let result = (|| {
-            let pair=db(self.0.query_row("SELECT harness_id,user_id,role FROM pairs WHERE code_hash=?1 AND consumed=0 AND expires>?2",params![hash(r.pairing_code.as_bytes()),now()],|row|Ok((row.get::<_,String>(0)?,row.get::<_,Option<String>>(1)?,row.get::<_,i32>(2)?))).optional())?.ok_or(ErrorCode::Forbidden)?;
+            let pair=db(self.0.query_row("SELECT harness_id,user_id,role FROM pairs WHERE code_hash=?1 AND consumed=0 AND expires>?2",params![hash(code.as_bytes()),now()],|row|Ok((row.get::<_,String>(0)?,row.get::<_,Option<String>>(1)?,row.get::<_,i32>(2)?))).optional())?.ok_or(ErrorCode::Forbidden)?;
             let (h, u, role) = pair;
             let pair_user = u.unwrap_or_else(id);
             let existing = db(self
@@ -309,7 +321,7 @@ impl Store {
             ))?;
             db(self.0.execute(
                 "UPDATE pairs SET consumed=1 WHERE code_hash=?1",
-                [hash(r.pairing_code.as_bytes())],
+                [hash(code.as_bytes())],
             ))?;
             db(self.0.execute(
                 "UPDATE harnesses SET acl_version=acl_version+1 WHERE id=?1",
@@ -450,6 +462,35 @@ mod tests {
             },
             pair.pairing_code,
         )
+    }
+    #[test]
+    fn pairing_code_is_six_characters_and_redeems_when_pasted_loosely() {
+        let mut store = Store::open(":memory:").unwrap();
+        let (mut redeem, code) = owner_pair(&mut store);
+        assert_eq!(code.len(), PAIRING_CODE_LEN);
+        assert!(code.bytes().all(|b| PAIRING_ALPHABET.contains(&b)));
+        assert!(!code.bytes().any(|b| b"ILOU".contains(&b)));
+        let pasted = format!(
+            " {} - {} ",
+            code[..3].to_lowercase(),
+            code[3..].to_lowercase()
+        );
+        let key = SigningKey::from_bytes(&[7; 32]);
+        let signature = key.sign(&transcript(
+            b"HRP-PAIR-v1",
+            &[pasted.as_bytes(), b"d", &redeem.public_key],
+        ));
+        redeem.pairing_code = pasted;
+        redeem.possession_signature = signature.to_bytes().to_vec();
+        assert!(matches!(
+            store.redeem_pair(&redeem).unwrap(),
+            Res::PairRedeem(_)
+        ));
+        let consumed: i64 = store
+            .0
+            .query_row("SELECT consumed FROM pairs", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(consumed, 1);
     }
     #[test]
     fn failed_membership_write_rolls_back_device_code_and_receipt() {

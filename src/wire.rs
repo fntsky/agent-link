@@ -25,6 +25,34 @@ pub fn random_bytes() -> Vec<u8> {
     rand::rngs::OsRng.fill_bytes(&mut data);
     data
 }
+/// Pairing codes are read and typed by hand. Six Crockford Base32 symbols
+/// (no I/L/O/U) give 30 bits, so codes stay short lived, single use and rate
+/// limited; docs/protocol.md records the resulting bound.
+pub const PAIRING_CODE_LEN: usize = 6;
+pub const PAIRING_ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+pub fn pairing_code() -> String {
+    random_bytes()
+        .iter()
+        .take(PAIRING_CODE_LEN)
+        // 256 is a multiple of 32, so masking the low five bits is unbiased.
+        .map(|byte| PAIRING_ALPHABET[(byte & 31) as usize] as char)
+        .collect()
+}
+/// Accept what people paste: case, spaces, dashes, and the characters the
+/// alphabet deliberately omits are folded onto the canonical code before the
+/// hash lookup. The signature still covers exactly what the client sent.
+pub fn normalize_pairing_code(raw: &str) -> String {
+    raw.chars()
+        .filter(|c| !c.is_whitespace() && *c != '-')
+        .flat_map(char::to_uppercase)
+        .map(|c| match c {
+            'I' | 'L' => '1',
+            'O' => '0',
+            'U' => 'V',
+            other => other,
+        })
+        .collect()
+}
 pub fn transcript(prefix: &[u8], parts: &[&[u8]]) -> Vec<u8> {
     let mut result = prefix.to_vec();
     for part in parts {
@@ -80,4 +108,31 @@ pub fn error(request: &Envelope, code: ErrorCode) -> Envelope {
 pub type Result<T> = std::result::Result<T, ErrorCode>;
 pub fn require(condition: bool, code: ErrorCode) -> Result<()> {
     if condition { Ok(()) } else { Err(code) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pairing_codes_are_six_unambiguous_characters() {
+        let mut seen = std::collections::HashSet::new();
+        for _ in 0..64 {
+            let code = pairing_code();
+            assert_eq!(code.len(), PAIRING_CODE_LEN);
+            assert!(code.bytes().all(|b| PAIRING_ALPHABET.contains(&b)));
+            assert!(!code.bytes().any(|b| b"ILOU".contains(&b)));
+            seen.insert(code);
+        }
+        assert!(seen.len() > 1);
+    }
+
+    #[test]
+    fn pasted_pairing_codes_fold_onto_the_canonical_form() {
+        assert_eq!(normalize_pairing_code(" 7k3-m2p "), "7K3M2P");
+        // O/I/L/U never appear in generated codes, so typographic lookalikes
+        // are folded onto the symbol the alphabet actually uses.
+        assert_eq!(normalize_pairing_code("oil u"), "011V");
+        assert_eq!(normalize_pairing_code(""), "");
+    }
 }
