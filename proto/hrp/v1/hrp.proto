@@ -136,7 +136,7 @@ message CapabilitiesGetResponse { repeated string operations = 1; repeated strin
 message SessionListRequest { uint32 page_size = 1; optional string page_token = 2; }
 message SessionListResponse { repeated SessionSummary sessions = 1; optional string next_page_token = 2; }
 
-message SessionCreateRequest { Mutation mutation = 1; optional string title = 2; ModelSelection model = 3; }
+message SessionCreateRequest { Mutation mutation = 1; optional string title = 2; ModelSelection model = 3; optional string workspace = 4; }
 message SessionCreateResponse { Baseline baseline = 1; AgentRef agent = 2; }
 
 message SessionOpenRequest { string session_id = 1; bool resume_agent = 2; Mutation mutation = 3; }
