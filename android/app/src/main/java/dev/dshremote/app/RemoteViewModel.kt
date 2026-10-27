@@ -128,7 +128,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         updateSettings { it.copy(remoteAddress = address.trim()) }
         _ui.update { it.copy(address = address.trim()) }
         var profile = vault.profile?.takeIf { it.endpoint == endpoint }
-        val code = pairingCode.trim().ifEmpty { profile?.pairingCode.orEmpty() }
+        val code = PairingCode.normalize(pairingCode).ifEmpty { profile?.pairingCode.orEmpty() }
         require(code.isNotBlank() || !profile?.harness.isNullOrBlank()) { "首次连接需要输入 Harness 提供的配对码" }
         _ui.update { it.copy(address = address.trim(), sessions = emptyList(), directoryLoaded = false, nextPage = null, capabilities = emptySet()) }
         try {
@@ -179,9 +179,13 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         vault.finishOperation(scope)
         return result
     }
-    fun create(title: String) = launchWork {
-        val created = mutate("create:$title") { client.createSession(title.trim(), it) }
-        val session = created.baseline.session
+    fun create(workspace: String, title: String) = launchWork {
+        val target = workspace.trim()
+        val created = mutate("create:${DeviceIdentity.newId()}") { client.createSession(title.trim(), target, it) }
+        var session = created.baseline.session
+        if (target.isNotBlank() && session.workspace.isBlank()) {
+            session = session.toBuilder().setWorkspace(target).build()
+        }
         _ui.update { it.copy(sessions = listOf(session) + it.sessions.filterNot { old -> old.sessionId == session.sessionId }, directoryLoaded = true) }
         client.follow(session.sessionId)
     }

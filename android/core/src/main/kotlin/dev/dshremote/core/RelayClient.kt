@@ -137,7 +137,11 @@ class RelayClient(private val identity: DeviceIdentity) {
         _link.value = Link(true, "身份已验证")
         return challenge.relayId
     }
-    suspend fun redeem(code: String, operationId: String): PairRedeemResponse {
+    suspend fun redeem(rawCode: String, operationId: String): PairRedeemResponse {
+        // Sign and send the canonical form so pasted dashes or lower case still
+        // match the code the Relay hashed.
+        val code = PairingCode.normalize(rawCode)
+        require(code.length == PairingCode.LENGTH) { "配对码应为 ${PairingCode.LENGTH} 个字符，可忽略大小写、空格和连字符" }
         val message = DeviceIdentity.transcript("HRP-PAIR-v1", code.toByteArray(), identity.deviceId.toByteArray(), identity.publicKey)
         val result = try {
             rpc(dev.dshremote.protocol.Request.newBuilder().setPairRedeem(PairRedeemRequest.newBuilder().setMutation(mutation(operationId)).setPairingCode(code).setDeviceId(identity.deviceId).setPublicKey(ByteString.copyFrom(identity.publicKey)).setPossessionSignature(ByteString.copyFrom(identity.sign(message)))).build(), harness = null).pairRedeem
@@ -158,11 +162,13 @@ class RelayClient(private val identity: DeviceIdentity) {
         if (e.code == ErrorCode.ERROR_CODE_FORBIDDEN) throw IOException("当前设备已不是该 Harness 的成员，请重新配对")
         throw e
     }
-    suspend fun createSession(title: String, operationId: String): SessionCreateResponse {
+    suspend fun createSession(title: String, workspace: String, operationId: String): SessionCreateResponse {
         val request = SessionCreateRequest.newBuilder().setMutation(mutation(operationId))
         // An empty title keeps the native DSH auto-title; a provided title is written
         // as a normal session/title event by the Harness adapter.
         if (title.isNotBlank()) request.setTitle(title)
+        // The Harness creates the Session in this native workspace directory.
+        if (workspace.isNotBlank()) request.setWorkspace(workspace)
         return rpc(dev.dshremote.protocol.Request.newBuilder().setSessionCreate(request).build()).sessionCreate
     }
     suspend fun follow(session: String) = navigation.withLock {

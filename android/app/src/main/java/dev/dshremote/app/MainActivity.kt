@@ -10,6 +10,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -18,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -114,7 +116,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun RemoteApp(state: RemoteUi, settings: AppSettings, vm: RemoteViewModel) {
-    var createDialog by remember { mutableStateOf(false) }
+    var createWorkspace by remember { mutableStateOf<String?>(null) }
     var cancelDialog by remember { mutableStateOf(false) }
     var abandonDialog by remember { mutableStateOf(false) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
@@ -147,16 +149,19 @@ private fun RemoteApp(state: RemoteUi, settings: AppSettings, vm: RemoteViewMode
             when {
                 showSettings -> SettingsScreen(state, settings, vm, Modifier.weight(1f))
                 !state.connected -> ConnectPanel(state, vm, Modifier.weight(1f))
-                state.conversation == null -> Directory(state, vm, { createDialog = true }, Modifier.weight(1f))
+                state.conversation == null -> Directory(state, vm, { createWorkspace = it }, Modifier.weight(1f))
                 else -> Chat(state, vm, { cancelDialog = true }, { abandonDialog = true }, Modifier.weight(1f))
             }
         }
     }
-    if (createDialog) {
-        var title by remember { mutableStateOf("") }
-        AlertDialog(onDismissRequest = { createDialog = false }, title = { Text("新建会话") }, text = {
-            OutlinedTextField(title, { title = it }, label = { Text("会话名称") }, singleLine = true)
-        }, confirmButton = { TextButton(onClick = { createDialog = false; vm.create(title) }) { Text("创建") } }, dismissButton = { TextButton(onClick = { createDialog = false }) { Text("取消") } })
+    createWorkspace?.let { workspace ->
+        var title by remember(workspace) { mutableStateOf("") }
+        AlertDialog(onDismissRequest = { createWorkspace = null }, title = { Text("新建会话") }, text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("工作区：${if (workspace.isBlank()) "默认工作区" else workspaceLabel(workspace)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(title, { title = it }, label = { Text("会话名称") }, singleLine = true)
+            }
+        }, confirmButton = { TextButton(onClick = { createWorkspace = null; vm.create(workspace, title) }) { Text("创建") } }, dismissButton = { TextButton(onClick = { createWorkspace = null }) { Text("取消") } })
     }
     if (cancelDialog) Confirm("请求停止 Agent？", "已生成的内容会保留，Inbox 队列会保留。实际停止由会话结束事件确认。", "请求停止", { cancelDialog = false; vm.cancel() }, { cancelDialog = false })
     if (abandonDialog) Confirm("放弃本地重试？", "远端可能已经接受这条消息。此操作只移除本机重试记录。", "放弃重试", { abandonDialog = false; vm.abandonSend() }, { abandonDialog = false })
@@ -290,7 +295,7 @@ private fun ConnectPanel(state: RemoteUi, vm: RemoteViewModel, modifier: Modifie
 }
 
 @Composable
-private fun Directory(state: RemoteUi, vm: RemoteViewModel, create: () -> Unit, modifier: Modifier) {
+private fun Directory(state: RemoteUi, vm: RemoteViewModel, onCreate: (String) -> Unit, modifier: Modifier) {
     var menu by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(setOf<String>()) }
     // groupBy preserves the order of the already newest-first session list,
@@ -311,7 +316,6 @@ private fun Directory(state: RemoteUi, vm: RemoteViewModel, create: () -> Unit, 
                     DropdownMenuItem(text = { Text("断开连接") }, onClick = { menu = false; vm.disconnect() })
                 }
             }
-            FilledTonalIconButton(onClick = create, enabled = !state.busy) { Icon(Icons.Default.Add, "新建会话") }
         }
         Text("与 Harness 工作区共用同一份会话目录", Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -323,19 +327,22 @@ private fun Directory(state: RemoteUi, vm: RemoteViewModel, create: () -> Unit, 
                 Spacer(Modifier.height(8.dp))
                 Text(if (!state.directoryLoaded) "连接后会自动读取，无需手动刷新。" else "在工作区或这里创建会话开始工作。", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(20.dp))
-                Button(onClick = { if (!state.directoryLoaded) vm.refresh() else create() }, enabled = !state.busy) { Text(if (!state.directoryLoaded) "重新读取" else "新建会话") }
+                Button(onClick = { if (!state.directoryLoaded) vm.refresh() else onCreate("") }, enabled = !state.busy) { Text(if (!state.directoryLoaded) "重新读取" else "新建会话") }
             }
         } else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             groups.forEach { (workspace, sessions) ->
                 val key = workspace.ifBlank { "" }
                 val open = key in expanded
                 item(key = "workspace:$key") {
-                    WorkspaceHeader(workspaceLabel(key), sessions.size, open) {
-                        expanded = if (open) expanded - key else expanded + key
-                    }
-                }
-                if (open) {
-                    items(sessions, key = { it.sessionId }) { session -> SessionCard(session, state.busy, vm) }
+                    WorkspaceBox(
+                        label = workspaceLabel(key),
+                        sessions = sessions,
+                        expanded = open,
+                        busy = state.busy,
+                        onToggle = { expanded = if (open) expanded - key else expanded + key },
+                        onAdd = { expanded = expanded + key; onCreate(key) },
+                        onOpen = { vm.follow(it) },
+                    )
                 }
             }
             state.nextPage?.let { item { TextButton(onClick = { vm.refresh(true) }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text("加载更多会话") } } }
@@ -344,30 +351,74 @@ private fun Directory(state: RemoteUi, vm: RemoteViewModel, create: () -> Unit, 
 }
 
 @Composable
-private fun WorkspaceHeader(label: String, count: Int, expanded: Boolean, toggle: () -> Unit) {
-    Surface(Modifier.fillMaxWidth().clickable(onClick = toggle), shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.FolderOpen, null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(10.dp))
-            Text(label, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("$count", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.width(6.dp))
-            Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (expanded) "折叠工作空间" else "展开工作空间")
+private fun WorkspaceBox(
+    label: String,
+    sessions: List<SessionSummary>,
+    expanded: Boolean,
+    busy: Boolean,
+    onToggle: () -> Unit,
+    onAdd: () -> Unit,
+    onOpen: (String) -> Unit,
+) {
+    Surface(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.weight(1f).clickable(onClick = onToggle).padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.FolderOpen, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(label, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${sessions.size}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(4.dp))
+                    Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (expanded) "折叠工作区" else "展开工作区", modifier = Modifier.size(18.dp))
+                }
+                IconButton(onClick = onAdd, enabled = !busy, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Add, "在此工作区新建会话", modifier = Modifier.size(20.dp)) }
+            }
+            if (expanded) {
+                Spacer(Modifier.height(8.dp))
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val count = minOf(4, sessions.size).coerceAtLeast(1)
+                    val gap = 8.dp
+                    val width = ((maxWidth - gap * (count - 1)) / count).coerceAtMost(180.dp)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                        items(sessions, key = { it.sessionId }) { session ->
+                            SessionCard(session, busy, width) { onOpen(session.sessionId) }
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun SessionCard(session: SessionSummary, busy: Boolean, vm: RemoteViewModel) {
-    Card(onClick = { vm.follow(session.sessionId) }, enabled = !busy, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.ChatBubbleOutline, null, tint = MaterialTheme.colorScheme.primary)
-            Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
-                Text(session.title.ifBlank { "未命名会话" }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(4.dp))
-                Text("${agentState(session.agentState)} · 已提交 ${session.committedSeq}" + if (session.hasParentSessionId()) " · 分支会话" else "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun SessionCard(session: SessionSummary, busy: Boolean, width: androidx.compose.ui.unit.Dp, onOpen: () -> Unit) {
+    Surface(
+        onClick = onOpen,
+        enabled = !busy,
+        modifier = Modifier.width(width).height(106.dp),
+        shape = RoundedCornerShape(13.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(Modifier.fillMaxSize().padding(9.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.ChatBubbleOutline, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(13.dp))
+                Spacer(Modifier.width(5.dp))
+                Text(agentState(session.agentState), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Icon(Icons.Default.ChevronRight, "进入会话")
+            Text(session.title.ifBlank { "未命名会话" }, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(lastActivityLabel(session) ?: "无活动时间", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Icon(Icons.Default.ChevronRight, "进入会话", modifier = Modifier.size(14.dp))
+            }
         }
     }
 }
