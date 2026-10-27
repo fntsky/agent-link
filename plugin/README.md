@@ -38,7 +38,7 @@
   401/403。设置页不会把注册令牌或私钥回传给浏览器。
 
 Session 标题直接取 DSH 的 `title` 投影；没有标题时依次使用工作目录名和 Session ID，
-因此手机与工作区的显示名一致。`session.create` 带标题时会通过 `sessionController.rename`
+因此手机与工作区的显示名一致。`session.create` 可带 `workspace`（原生目录），创建时传给 `sessionController.create({ cwd })`；带标题时通过 `sessionController.rename`
 写入原生 `session/title` 事件，之后在工作区也能看到。
 
 移除成员时 Relay 会推送新的 `membership.snapshot`，插件在

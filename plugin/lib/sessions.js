@@ -440,7 +440,8 @@ export class SessionBridge {
       },
 
       session_create: async (payload) => {
-        const value = await this.#controller().create({});
+        const requestedWorkspace = String(payload.workspace || '').trim();
+        const value = await this.#controller().create(requestedWorkspace === '' ? {} : { cwd: requestedWorkspace });
         const sessionId = String(value.sessionId);
         const title = String(payload.title || '').trim();
         let appliedTitle = '';

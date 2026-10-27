@@ -1209,11 +1209,21 @@
      "type": "message",
      "label": "optional",
      "typeName": "hrp.v1.ModelSelection"
+    },
+    {
+     "name": "workspace",
+     "number": 4,
+     "type": "string",
+     "label": "optional",
+     "optional": true
     }
    ],
    "oneofs": {
     "_title": [
      "title"
+    ],
+    "_workspace": [
+     "workspace"
     ]
    }
   },

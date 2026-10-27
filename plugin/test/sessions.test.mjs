@@ -48,7 +48,7 @@ function makeContext() {
           { sessionId: 'local-1', updatedAt: NOW - 1000, cwd: '/work/Local Project', projections: { asOfSeq: 0, values: {} } },
         ] };
       },
-      async create() { return { sessionId: 's1' }; },
+      async create(options) { this.lastCreate = options; return { sessionId: 's1' }; },
       async rename(request) { this.lastRename = request; return { title: request.title, seq: 7 }; },
       async inspect(sessionId) {
         if (sessionId !== 's1' && sessionId !== 'local-1') {
@@ -104,7 +104,7 @@ const forward = { route_id: 'r1', connection_id: 'c1' };
 
 test('session list/create/open/snapshot/page produce valid HRP messages', async () => {
   const { adapter, state } = bridgeFor();
-  const created = await adapter.handlers.session_create({ title: 'Remote chat', mutation: { client_operation_id: 'create-1' } }, { principal });
+  const created = await adapter.handlers.session_create({ title: 'Remote chat', workspace: '/work/project-one', mutation: { client_operation_id: 'create-1' } }, { principal });
   encode('hrp.v1.SessionCreateResponse', created);
   assert.equal(created.baseline.session.title, 'Remote chat');
   assert.equal(state.remoteSessions, undefined);
