@@ -55,6 +55,10 @@ import dev.dshremote.core.*
 import dev.dshremote.protocol.*
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
 
@@ -289,10 +293,12 @@ private fun ConnectPanel(state: RemoteUi, vm: RemoteViewModel, modifier: Modifie
 private fun Directory(state: RemoteUi, vm: RemoteViewModel, create: () -> Unit, modifier: Modifier) {
     var menu by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(setOf<String>()) }
+    // groupBy preserves the order of the already newest-first session list,
+    // so both workspaces and the sessions inside them are time ordered.
     val groups = state.sessions
+        .sortedByDescending { sessionUpdatedAt(it) }
         .groupBy { if (it.hasWorkspace()) it.workspace else "" }
         .toList()
-        .sortedBy { (workspace, _) -> workspaceLabel(workspace) }
     Column(modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("会话", Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -363,6 +369,23 @@ private fun SessionCard(session: SessionSummary, busy: Boolean, vm: RemoteViewMo
             }
             Icon(Icons.Default.ChevronRight, "进入会话")
         }
+    }
+}
+
+private fun sessionUpdatedAt(session: SessionSummary): Long =
+    if (session.hasUpdatedAt()) session.updatedAt.seconds else 0
+
+private fun lastActivityLabel(session: SessionSummary): String? {
+    val seconds = sessionUpdatedAt(session)
+    if (seconds <= 0) return null
+    val zone = ZoneId.systemDefault()
+    val time = Instant.ofEpochSecond(seconds).atZone(zone)
+    val today = LocalDate.now(zone)
+    return when {
+        time.toLocalDate() == today -> "今天 " + time.format(DateTimeFormatter.ofPattern("HH:mm"))
+        time.toLocalDate() == today.minusDays(1) -> "昨天 " + time.format(DateTimeFormatter.ofPattern("HH:mm"))
+        time.year == today.year -> time.format(DateTimeFormatter.ofPattern("M月d日 HH:mm"))
+        else -> time.format(DateTimeFormatter.ofPattern("yyyy年M月d日"))
     }
 }
 
