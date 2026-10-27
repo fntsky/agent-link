@@ -126,9 +126,14 @@ async def run(server):
         passed("Ed25519 Harness proof, persistent pairing idempotency and conflict")
 
         owner = await phone()
+        # Six-character codes are typed by hand: a pasted code may differ in
+        # case or carry a dash, and the Relay folds it onto the canonical form.
+        assert len(pair.pairing_code) == 6
+        assert all(c in "0123456789ABCDEFGHJKMNPQRSTVWXYZ" for c in pair.pairing_code)
+        pasted = f"{pair.pairing_code[:3].lower()}-{pair.pairing_code[3:]}"
         # Hold acknowledgement to demonstrate the ACL barrier.
         harness.sync_gate.clear()
-        paired = await owner.redeem(pair.pairing_code)
+        paired = await owner.redeem(pasted)
         await expect_error(pb.ERROR_CODE_ACL_NOT_SYNCED, owner.call("session_list", pb.SessionListRequest()))
         harness.sync_gate.set()
         assert not (await ready(owner)).sessions
