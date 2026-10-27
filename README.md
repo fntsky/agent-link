@@ -64,7 +64,7 @@ Relay 本身不依赖 Formicary 登录会话，不把 `X-Formicary-*` 当作 HRP
 
 - 无 prepare 构建步骤，直接运行 `dist/dsh-remote`。
 - 默认令牌文件：`${CHAMBER_DATA_DIR}/relay-registration-token`，权限为 0600。
-  可在服务器读取这个文件，将其值填给 Harness；手机只填写一次性配对码。
+  可在服务器读取这个文件，将其值填给 Harness；手机只填写一次性六位配对码。
 - 在本机 `chamber.toml` 的 `script` 中写 `HRP_REGISTRATION_TOKEN="自定义长令牌" ./start.sh`
   可以显式指定，优先于文件。实际令牌不能提交到公开仓库。
   修改配置后重启 Chamber；令牌文件和数据库都位于共享数据目录，升级不会清空。

@@ -35,7 +35,8 @@ async def main():
         print("模拟 Harness 已上线；Session 只保留在此进程中，不执行真实模型或工具。", flush=True)
         try:
             pair = await harness.rpc("pair_create", pb.PairCreateRequest(mutation=pb.Mutation(client_operation_id=uid()), harness_id=harness.identity, mode=1))
-            print("首次 owner 配对码（单次有效，最多 5 分钟）：\n" + pair.pairing_code, flush=True)
+            code = pair.pairing_code
+            print(f"首次 owner 配对码（六位，单次有效，最多 5 分钟）：\n{code[:3]}-{code[3:]}", flush=True)
         except RemoteError as error:
             if error.code != pb.ERROR_CODE_FORBIDDEN:
                 raise
