@@ -587,8 +587,7 @@ private fun finalAssistantText(round: ChatRound): String? {
 
 @Composable
 private fun RoundSection(round: ChatRound) {
-    var open by remember(round.key) { mutableStateOf(round.isLast) }
-    LaunchedEffect(round.isLast) { if (!round.isLast) open = false }
+    var open by remember(round.key) { mutableStateOf(false) }
     val tools = round.events.count { it.hasToolCall() } + round.events.sumOf { embeddedToolBlocks(it).size }
     val completed = round.events.any { it.eventType == "turn/end" } || round.events.any { it.hasAssistantMessage() }
     val times = round.events.mapNotNull { event ->
