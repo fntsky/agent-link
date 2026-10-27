@@ -36,9 +36,13 @@
   4 字节无符号大端长度。服务端从已存挑战构造内容，验证后原子消费挑战。
 - HarnessRegister 只能建立待证明身份；必须完成对登记公钥的挑战证明，才可成为
   在线 Harness 或创建 owner 配对。已存在 ID 的公钥不得被 register 覆盖。
-- 配对码至少 128 bit 熵、最多 5 分钟有效、原子单次消费；Relay 限速，不记录码。
+- 配对码是 6 位 Crockford Base32（字母表省略 I/L/O/U，30 bit 熵），最多 5 分钟有效、
+  原子单次消费；Relay 只保存其 SHA-256 摘要，不记录或输出码。未认证请求按 IP 限速
+  120 次/分钟，同一个 5 分钟窗口内至多约 600 次尝试，单码命中概率低于 6e-7。
+  输入忽略大小写、空格与连字符，并把 O/I/L/U 归一化为 0/1/1/V 后再查表。
   PairRedeem.possession_signature 对 ASCII `HRP-PAIR-v1` 加依次长度前缀的
-  pairing_code、device_id、public_key 签名，长度格式同认证。兑换绑定当前连接，
+  pairing_code、device_id、public_key 签名，长度格式同认证；签名覆盖客户端发送的
+  原始字符串，查表使用归一化形式。兑换绑定当前连接，
   成功后该连接取得已验证设备身份；后续连接必须重新挑战认证。
 - owner 仅限已证明且尚无 owner 的 Harness 发起；device_link 只能由已认证同用户
   设备发起；invite 只能由 owner 发起并创建独立用户。user_id/roles 由 Relay 指定。

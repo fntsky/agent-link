@@ -176,7 +176,8 @@ private fun RemoteApp(state: RemoteUi, settings: AppSettings, vm: RemoteViewMode
         AlertDialog(onDismissRequest = vm::closePairing, title = { Text("一次性配对码") }, text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("仅交给要绑定的设备使用。到期：${time(pairing.expiresAt.seconds)}")
-                SelectionContainer { Text(pairing.pairingCode, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium) }
+                SelectionContainer { Text(PairingCode.display(pairing.pairingCode), fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.headlineSmall, letterSpacing = 4.sp) }
+                Text("六位字符，不区分大小写，空格和连字符可忽略。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }, confirmButton = { TextButton(onClick = vm::closePairing) { Text("完成") } })
     }
@@ -287,7 +288,7 @@ private fun ConnectPanel(state: RemoteUi, vm: RemoteViewModel, modifier: Modifie
         item { Spacer(Modifier.height(24.dp)); Icon(Icons.Default.Devices, null, Modifier.size(52.dp), tint = MaterialTheme.colorScheme.primary) }
         item { Text("把工作现场\n带在身边", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold); Spacer(Modifier.height(10.dp)); Text("连接你的 Harness，按需查看会话、跟进任务，并处理工具审批。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         item { OutlinedTextField(address, { address = it }, Modifier.fillMaxWidth(), label = { Text("Relay 地址") }, placeholder = { Text("wss://example.com/dsh-remote") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), singleLine = true, enabled = !state.busy) }
-        item { OutlinedTextField(code, { code = it }, Modifier.fillMaxWidth(), label = { Text("首次连接的配对码") }, supportingText = { Text("已配对设备留空即可；配对码由 Harness 或已有设备提供。") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, enabled = !state.busy) }
+        item { OutlinedTextField(code, { code = PairingCode.normalize(it).take(PairingCode.LENGTH) }, Modifier.fillMaxWidth(), label = { Text("首次连接的配对码") }, supportingText = { Text("六位字符，不区分大小写；已配对设备留空即可。") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii), visualTransformation = PasswordVisualTransformation(), singleLine = true, enabled = !state.busy) }
         item { Button(onClick = { vm.connect(address, code); code = "" }, Modifier.fillMaxWidth().height(52.dp), enabled = address.isNotBlank() && !state.busy) { Icon(Icons.Default.Link, null); Spacer(Modifier.width(8.dp)); Text("连接 Harness") } }
         item { Text("设备私钥在本机加密保存。仅连接和认证不会读取会话历史。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         item { Text("DSH Remote v${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }

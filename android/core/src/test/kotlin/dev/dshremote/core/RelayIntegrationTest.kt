@@ -65,7 +65,8 @@ class RelayIntegrationTest {
             assertEquals(chosen, client.selectModel(session, chosen, DeviceIdentity.newId()))
             assertEquals(chosen, client.currentModel(session))
             val link = client.createPair(PairMode.PAIR_MODE_DEVICE_LINK, DeviceIdentity.newId())
-            assertTrue(link.pairingCode.isNotEmpty())
+            assertEquals(PairingCode.LENGTH, link.pairingCode.length)
+            assertEquals(link.pairingCode, PairingCode.normalize(link.pairingCode.lowercase()))
             val cursor = client.conversation.value!!.cursor
             client.cancel(session, true, DeviceIdentity.newId())
             val cancelled = withTimeout(5000) { client.conversation.first { (it?.cursor ?: 0) > cursor } }!!
